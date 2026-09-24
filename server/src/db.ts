@@ -230,6 +230,8 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_emails_uid ON emails(uid_validity, uid);
 `);
+// 1.11.0: 'moved' / 'deleted' once an imported email was tidied out of the inbox.
+if (!hasColumn('emails', 'mailbox_action')) db.exec('ALTER TABLE emails ADD COLUMN mailbox_action TEXT');
 
 // 1.5.0: display groups ("Fixed", "Living", "Lifestyle") — a layer over
 // expense categories for dashboard/plan subtotals only. Budgets, splits and

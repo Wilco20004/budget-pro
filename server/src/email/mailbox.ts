@@ -2,9 +2,9 @@ import { ImapFlow } from 'imapflow';
 import { ParsedMail, simpleParser } from 'mailparser';
 import { EmailConfig, getEmailConfig } from '../settings';
 
-// Read-only access to the receipts mailbox. Nothing is deleted, moved or
-// flagged there: which messages were handled is tracked in the emails table,
-// so the mailbox stays the untouched original.
+// Access to the receipts mailbox. Which messages were handled is tracked in
+// the emails table; the only change ever made to the mailbox is moving (or,
+// if configured, deleting) emails that were imported successfully.
 
 export interface MessageSummary {
   uid: number;
@@ -21,7 +21,12 @@ function addr(list: { name?: string; address?: string }[] | undefined): string |
   return a.name && a.address ? `${a.name} <${a.address}>` : a.address ?? a.name ?? null;
 }
 
-export async function withMailbox<T>(fn: (client: ImapFlow, uidValidity: string, cfg: EmailConfig) => Promise<T>): Promise<T> {
+/** Opens the mailbox folder (the configured one unless `folder` is given).
+ *  Read-only unless `write` — only tidying imported emails away needs it. */
+export async function withMailbox<T>(
+  fn: (client: ImapFlow, uidValidity: string, cfg: EmailConfig) => Promise<T>,
+  opts: { folder?: string; write?: boolean } = {}
+): Promise<T> {
   const cfg = getEmailConfig();
   if (!cfg) throw new Error('Email isn’t set up — add imap_host, imap_user and imap_password in the add-on’s Configuration tab.');
   const client = new ImapFlow({
@@ -35,7 +40,7 @@ export async function withMailbox<T>(fn: (client: ImapFlow, uidValidity: string,
   client.on('error', () => undefined);
   await client.connect();
   try {
-    const lock = await client.getMailboxLock(cfg.folder, { readOnly: true });
+    const lock = await client.getMailboxLock(opts.folder || cfg.folder, { readOnly: !opts.write });
     try {
       const mb = client.mailbox;
       const uidValidity = mb && typeof mb === 'object' ? String(mb.uidValidity) : '';
@@ -74,6 +79,21 @@ export async function listMessages(
     });
   }
   return out.sort((a, b) => b.uid - a.uid);
+}
+
+/** The folder imported emails move to, created if needed. Servers that keep
+ *  every folder under INBOX ("INBOX.BudgetPro") are handled too. */
+export async function ensureFolder(client: ImapFlow, name: string): Promise<string> {
+  const folders = await client.list();
+  const existing = folders.find((f) => f.path === name || f.name === name);
+  if (existing) return existing.path;
+  try {
+    return (await client.mailboxCreate(name)).path;
+  } catch {
+    const inbox = folders.find((f) => f.path.toUpperCase() === 'INBOX');
+    const delimiter = inbox?.delimiter || '.';
+    return (await client.mailboxCreate(`INBOX${delimiter}${name}`)).path;
+  }
 }
 
 export async function summaryFor(client: ImapFlow, uid: number): Promise<MessageSummary | null> {

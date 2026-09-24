@@ -1,4 +1,5 @@
 import path from 'path';
+import { ImapFlow } from 'imapflow';
 import { ParsedMail } from 'mailparser';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
@@ -7,10 +8,10 @@ import { importStatement } from '../importers';
 import { parseStatement } from '../importers/parse';
 import { ExtractedReceipt, parseReceiptText } from '../receipts/parseText';
 import { createDataReceipt, processReceipt, saveReceiptFile, storeExtraction } from '../receipts/service';
-import { getEmailConfig } from '../settings';
+import { EmailConfig, getEmailConfig } from '../settings';
 import { htmlToLines } from './htmlText';
 import { parseSixty60 } from './sixty60';
-import { fetchMessage, listMessages, MessageSummary, summaryFor, withMailbox } from './mailbox';
+import { ensureFolder, fetchMessage, listMessages, MessageSummary, summaryFor, withMailbox } from './mailbox';
 
 // Receipts mailbox → BudgetPro. Every few minutes new messages are read:
 //   - statement attachments (Discovery PDF, CSV, OFX) are imported,
@@ -151,21 +152,49 @@ export async function handleMail(mail: ParsedMail): Promise<{ status: EmailStatu
   return { status: 'ignored', detail: 'No slip, statement or receipt found', receipt_id: null };
 }
 
-function record(s: MessageSummary, uidValidity: string, r: { status: EmailStatus; detail: string; receipt_id: string | null }) {
+/** Saves what happened to a message. `elsewhere`: it was read from another
+ *  folder (e.g. already moved to BudgetPro), so its inbox uid isn't updated. */
+function record(s: MessageSummary, uidValidity: string, r: { status: EmailStatus; detail: string; receipt_id: string | null }, elsewhere = false) {
   const t = now();
+  const where = elsewhere ? '' : 'uid = excluded.uid, uid_validity = excluded.uid_validity, ';
   db.prepare(
     `INSERT INTO emails (id, uid, uid_validity, message_id, received_at, from_addr, subject, status, detail, receipt_id, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(message_id) DO UPDATE SET uid = excluded.uid, uid_validity = excluded.uid_validity, status = excluded.status,
+     ON CONFLICT(message_id) DO UPDATE SET ${where}status = excluded.status,
        detail = excluded.detail, receipt_id = COALESCE(excluded.receipt_id, emails.receipt_id), updated_at = excluded.updated_at`
   ).run(uuid(), s.uid, uidValidity, s.message_id ?? `uid:${uidValidity}:${s.uid}`, s.date, s.from, s.subject, r.status, r.detail, r.receipt_id, t, t);
+}
+
+/** Imported emails leave the inbox (moved to cfg.move_to, or deleted),
+ *  so it only shows what still needs a look. Each one is checked by
+ *  Message-ID first, so a stale uid can never touch a different email. */
+async function tidyMailbox(client: ImapFlow, uidValidity: string, cfg: EmailConfig) {
+  if (cfg.after_import === 'keep') return;
+  const rows = db
+    .prepare("SELECT uid, message_id FROM emails WHERE uid_validity = ? AND status IN ('receipt', 'statement') AND mailbox_action IS NULL")
+    .all(uidValidity) as { uid: number; message_id: string }[];
+  if (!rows.length) return;
+  const here = new Map<number, string | null>();
+  for await (const m of client.fetch(rows.map((r) => r.uid), { uid: true, envelope: true }, { uid: true })) {
+    here.set(m.uid, m.envelope?.messageId ?? null);
+  }
+  const mine = rows.filter((r) => here.has(r.uid) && (here.get(r.uid) === r.message_id || r.message_id.startsWith('uid:')));
+  const gone = rows.filter((r) => !here.has(r.uid));
+  const mark = db.prepare('UPDATE emails SET mailbox_action = ?, updated_at = ? WHERE uid_validity = ? AND uid = ?');
+  for (const r of gone) mark.run('gone', now(), uidValidity, r.uid);
+  if (!mine.length) return;
+  const uids = mine.map((r) => r.uid);
+  if (cfg.after_import === 'move') await client.messageMove(uids, await ensureFolder(client, cfg.move_to), { uid: true });
+  else await client.messageDelete(uids, { uid: true });
+  for (const r of mine) mark.run(cfg.after_import === 'move' ? 'moved' : 'deleted', now(), uidValidity, r.uid);
 }
 
 let running = false;
 
 /** Fetch and handle new messages. Safe to call any time (one run at a time). */
 export async function checkEmail(): Promise<{ processed: number }> {
-  if (!getEmailConfig() || running) return { processed: 0 };
+  const cfg = getEmailConfig();
+  if (!cfg || running) return { processed: 0 };
   running = true;
   let processed = 0;
   try {
@@ -191,7 +220,8 @@ export async function checkEmail(): Promise<{ processed: number }> {
         setState({ uid_validity: uidValidity, last_uid: lastUid });
       }
       if (fresh) setState({ uid_validity: uidValidity, last_uid: lastUid });
-    });
+      await tidyMailbox(client, uidValidity, cfg);
+    }, { write: cfg.after_import !== 'keep' });
     setState({ last_check: now(), last_error: null });
   } catch (e) {
     setState({ last_check: now(), last_error: (e as Error).message });
@@ -204,8 +234,8 @@ export async function checkEmail(): Promise<{ processed: number }> {
 
 /** Handle one message again (e.g. after a shop parser was added). A receipt
  *  made from the email body before is updated in place, not duplicated. */
-export async function reprocessEmail(uid: number): Promise<{ status: EmailStatus; detail: string; receipt_id: string | null }> {
-  return withMailbox(async (client, uidValidity) => {
+export async function reprocessEmail(uid: number, folder?: string): Promise<{ status: EmailStatus; detail: string; receipt_id: string | null }> {
+  return withMailbox(async (client, uidValidity, cfg) => {
     const s = await summaryFor(client, uid);
     if (!s) throw new Error(`No message with uid ${uid}`);
     const mail = await fetchMessage(client, uid);
@@ -227,10 +257,10 @@ export async function reprocessEmail(uid: number): Promise<{ status: EmailStatus
     } else {
       r = await handleMail(mail);
     }
-    record(s, uidValidity, r);
+    record(s, uidValidity, r, Boolean(folder && folder !== cfg.folder));
     publishSensors().catch(() => undefined);
     return r;
-  });
+  }, { folder });
 }
 
 export function emailStatus() {
@@ -240,6 +270,8 @@ export function emailStatus() {
     configured: Boolean(cfg),
     user: cfg?.user ?? null,
     folder: cfg?.folder ?? null,
+    after_import: cfg?.after_import ?? null,
+    move_to: cfg?.move_to ?? null,
     last_check: st.last_check,
     last_error: st.last_error,
     recent: db

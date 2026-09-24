@@ -19,6 +19,8 @@ interface AddonOptions {
   imap_user?: string;
   imap_password?: string;
   imap_folder?: string;
+  imap_after_import?: string;
+  imap_move_to?: string;
 }
 
 export interface EmailConfig {
@@ -27,6 +29,10 @@ export interface EmailConfig {
   user: string;
   password: string;
   folder: string;
+  /** What happens to an email once it has been imported: kept, moved to
+   *  move_to, or deleted. Skipped and failed emails always stay. */
+  after_import: 'keep' | 'move' | 'delete';
+  move_to: string;
 }
 
 /** The receipts mailbox (a dedicated account, e.g. a Gmail with an app
@@ -44,6 +50,8 @@ export function getEmailConfig(): EmailConfig | null {
     user,
     password,
     folder: o.imap_folder || process.env.IMAP_FOLDER || 'INBOX',
+    after_import: (['keep', 'move', 'delete'] as const).find((a) => a === (o.imap_after_import || process.env.IMAP_AFTER_IMPORT)) ?? 'move',
+    move_to: o.imap_move_to || process.env.IMAP_MOVE_TO || 'BudgetPro',
   };
 }
 

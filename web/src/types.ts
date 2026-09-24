@@ -299,6 +299,8 @@ export interface EmailStatus {
   configured: boolean;
   user: string | null;
   folder: string | null;
+  after_import: 'keep' | 'move' | 'delete' | null;
+  move_to: string | null;
   last_check: string | null;
   last_error: string | null;
   recent: EmailLog[];

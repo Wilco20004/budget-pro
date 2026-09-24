@@ -1,5 +1,15 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.11.0 — 2026-09-24
+
+- **Imported emails leave the inbox**: moved to a `BudgetPro` folder by
+  default (`imap_move_to`), or deleted with `imap_after_import: delete`
+  (`keep` leaves them). Only successfully imported emails are touched —
+  skipped and failed ones stay — and each is re-checked by Message-ID
+  before it is moved or deleted. Emails imported before this version are
+  tidied on the next check.
+- The MCP email tools take a `folder`, to read emails that were moved.
+
 ## 1.10.0 — 2026-09-24
 
 - **Checkers Sixty60 invoice emails** are read exactly: every product with

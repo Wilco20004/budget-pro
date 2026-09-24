@@ -84,9 +84,14 @@ mailbox can auto-forward the shop's emails. What happens per email:
   the bank transaction;
 - anything else (newsletters) is skipped.
 
-BudgetPro only reads the mailbox — it never deletes, moves, marks or sends
-anything — and handles each email once. The first check looks back 60
-days. Import → Email inbox shows what arrived and what became of it.
+Once an email has been imported it leaves the inbox: by default it is moved
+to a **BudgetPro** folder (`imap_move_to`), so the inbox only shows what
+still needs a look. Set `imap_after_import` to `delete` to delete imported
+emails instead, or `keep` to leave them. Skipped and failed emails always
+stay in the inbox. Before moving or deleting, each email is checked by its
+Message-ID, so only the one that was imported is touched. BudgetPro never
+sends email, and handles each one once; the first check looks back 60 days.
+Import → Email inbox shows what arrived and what became of it.
 
 **Phone notifications (Android, Discovery Bank)** — for day-to-day figures
 between statements. The Home Assistant Companion app's *Last notification*

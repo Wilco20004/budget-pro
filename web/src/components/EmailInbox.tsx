@@ -38,14 +38,17 @@ export default function EmailInbox({ initial }: { initial: EmailStatus | null })
           Forward online-order emails (e.g. Checkers Sixty60), slip photos, PDF e-slips and statements to a mailbox of their own and
           BudgetPro imports them every 5 minutes. Set it up in the add-on’s <strong>Configuration</strong> tab: <code>imap_host</code>,{' '}
           <code>imap_user</code> and <code>imap_password</code> (port 993). Use an address used only for this — a filter in your normal
-          mailbox can auto-forward the shop emails to it. BudgetPro only reads the mailbox; it never deletes or sends anything.
+          mailbox can auto-forward the shop emails to it. Imported emails are moved to a <code>BudgetPro</code> folder (or deleted, or kept — <code>imap_after_import</code>); nothing is ever sent.
         </p>
       ) : (
         <>
           <p className="small" style={{ marginTop: 0 }}>
             Checking <code className="token">{s.user}</code> ({s.folder}) every 5 minutes
             {s.last_check ? ` · last checked ${new Date(s.last_check).toLocaleString()}` : ''}. Forward order emails, slip photos,
-            e-slips and statements there.
+            e-slips and statements there.{' '}
+            {s.after_import === 'move' && <>Imported emails are moved to the <code>{s.move_to}</code> folder.</>}
+            {s.after_import === 'delete' && <>Imported emails are deleted from the mailbox.</>}
+            {s.after_import === 'keep' && <>Imported emails stay in the inbox.</>} Skipped and failed ones always stay.
           </p>
           {s.last_error && (
             <p className="small" style={{ color: 'var(--critical-text)' }}>
