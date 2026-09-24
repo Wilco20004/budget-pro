@@ -203,6 +203,8 @@ export interface BudgetLine {
   previous_actual: number;
   /** This period so far. */
   actual: number;
+  /** Set on a tracked card/loan's own Debt repayments line. */
+  debt: { account_id: string; owed: number | null } | null;
   group_id: string | null;
   group_name: string | null;
 }
@@ -265,6 +267,7 @@ export interface DebtAccount {
   name: string;
   bank: string;
   type: 'credit' | 'loan';
+  category_id: string | null;
   planned_payment: number | null;
   interest_rate: number | null;
   credit_limit: number | null;

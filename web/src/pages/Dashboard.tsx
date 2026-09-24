@@ -195,7 +195,7 @@ export default function Dashboard() {
               <div className="value" style={{ color: t.net < 0 ? 'var(--critical-text)' : 'var(--good-text)' }}>
                 {money(t.net, { whole: true, signed: true })}
               </div>
-              <div className="sub">income {t.borrowed_actual > 0 ? '+ borrowed ' : ''}− spending − savings{debts?.debts.length ? ' − debt paydown' : ''}</div>
+              <div className="sub">income {t.borrowed_actual > 0 ? '+ borrowed ' : ''}− spending − savings</div>
             </div>
             {debts && debts.debts.length > 0 && (
               <Link to="/debt" className="tile" style={{ color: 'inherit', textDecoration: 'none' }}>

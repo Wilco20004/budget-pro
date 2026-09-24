@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.20.0 — 2026-09-24
+
+- **Debts on the Plan page**: every tracked card and loan is its own line
+  under Debt repayments. Planned = the repayment (the same number on the
+  Debt page). Actual = the debt's interest, fees and cover plus how much
+  the balance came down. The separate "debt paydown" outflow is gone,
+  because it now sits inside Debt repayments.
+- Payment plans due in the period are listed as lines under their
+  category, instead of the "+R… payment plans" note.
+- *Re-check repayments* moves earlier debt costs from Bank fees and
+  Insurance to each debt's line.
+
 ## 1.19.0 — 2026-09-24
 
 - **Debt page**: every credit card and loan with owed, limit and

@@ -1,7 +1,7 @@
 import { db } from '../db';
 import { TX_STATUS_SQL } from './categorize';
 import { planBudget } from './paymentPlans';
-import { debtOverview } from './debts';
+import { debtOverview, paydownByCategory } from './debts';
 import { goalBudget } from './savings';
 import { parseIso, Period, recentPeriods, todayIso } from './periods';
 
@@ -77,7 +77,7 @@ export interface PeriodKpis {
     debt_paydown_planned: number;
     /** How much the tracked cards/loans went down this period (negative = debt grew). */
     debt_paydown_actual: number;
-    /** income + borrowed − expenses − savings − debt paydown: what's unaccounted for / left over. */
+    /** income + borrowed − expenses − savings (debt paydown is in expenses): what's left over. */
     net: number;
     /** (income − expenses) / income: share of income not spent. */
     savings_rate: number | null;
@@ -142,6 +142,8 @@ export function periodKpis(period: Period): PeriodKpis {
   }[];
   const plans = planBudget(period).byCategory;
   const goals = goalBudget();
+  // A debt's line also counts how much its balance came down.
+  const paydown = paydownByCategory(period);
 
   const sums = db
     .prepare(
@@ -172,9 +174,10 @@ export function periodKpis(period: Period): PeriodKpis {
     const moneyIn = c.kind === 'income' || c.kind === 'loan';
     const fromPlans = moneyIn ? 0 : plans.get(c.id) ?? 0;
     const fromGoals = moneyIn ? 0 : goals.get(c.id) ?? 0;
-    if (c.archived && !s && !c.planned && !fromPlans && !fromGoals) continue;
+    const fromPaydown = paydown.get(c.id) ?? 0;
+    if (c.archived && !s && !c.planned && !fromPlans && !fromGoals && !fromPaydown) continue;
     const signed = s?.total ?? 0;
-    const actual = r2(moneyIn ? signed : -signed);
+    const actual = r2((moneyIn ? signed : -signed) + fromPaydown);
     const planned = r2((c.planned || 0) + fromPlans + fromGoals);
     const pace = r2(planned * fraction);
     const status = spendStatus(planned, actual, pace, fraction, moneyIn);
@@ -329,11 +332,12 @@ export function periodKpis(period: Period): PeriodKpis {
       borrowed_actual,
       debt_paydown_planned,
       debt_paydown_actual,
-      net: r2(income_actual + borrowed_actual - expense_actual - savings_actual - debt_paydown_actual),
+      // Paydown is inside expense_actual (each debt's Debt repayments line).
+      net: r2(income_actual + borrowed_actual - expense_actual - savings_actual),
       savings_rate: income_actual > 0 ? r2(((income_actual - expense_actual) / income_actual) * 100) : null,
       expense_remaining,
       daily_allowance: daysLeft > 0 ? r2(expense_remaining / daysLeft) : null,
-      unallocated: r2(income_planned - expense_planned - savings_planned - debt_paydown_planned),
+      unallocated: r2(income_planned - expense_planned - savings_planned),
     },
     recon: {
       total: Object.values(st).reduce((a, b) => a + b, 0),

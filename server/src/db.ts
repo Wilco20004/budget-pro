@@ -594,3 +594,10 @@ for (const [col, def] of [
 ] as const) {
   if (!hasColumn('accounts', col)) db.exec(`ALTER TABLE accounts ADD COLUMN ${col} ${def}`);
 }
+
+// 1.20.0: each tracked card/loan has its own subcategory under Debt
+// repayments. Its budget is the planned repayment; its actual is the debt's
+// interest, fees and cover plus how much the balance came down.
+if (!hasColumn('accounts', 'debt_category_id')) {
+  db.exec('ALTER TABLE accounts ADD COLUMN debt_category_id TEXT REFERENCES categories(id) ON DELETE SET NULL');
+}

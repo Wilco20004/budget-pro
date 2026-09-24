@@ -303,22 +303,26 @@ one it shows:
 
 How it counts in the budget:
 
+- **Each card and loan is a line under Debt repayments** on the Plan page,
+  named after the account. Its **planned** amount is your repayment (edit it
+  on the Plan page or the Debt page; they're the same number). Its
+  **actual** is what the debt really took this period: its interest, fees
+  and cover, plus how much the balance came down. If the balance grew (you
+  took money off the card), the actual is lower than what you paid in.
+- **Payment plans** due in the period are listed as their own lines under
+  their category.
 - **Repayments into a tracked debt account are transfers.** BudgetPro
   matches the payment on the card or loan statement with the money leaving
   the paying account (same amount, within 4 days), so a debit order that a
-  rule had filed under Debt repayments becomes a transfer.
-- **Only the cost is spending.** On a loan, interest and fees go to *Bank
-  fees* and credit-life cover to *Insurance*. On a card, interest and fee
-  lines go to *Bank fees*, and purchases go to their own categories.
-- **The rest is debt paydown**, planned like savings. The Plan page shows each
-  account's repayment and how much of it should pay the balance down, and
-  that paydown is part of *Planned out*. The dashboard shows what's owed and
-  how much came off this period.
+  rule had filed under Debt repayments becomes a transfer and isn't counted
+  twice.
 - **Debts you don't import statements for** (a store card, someone else's
-  loan) stay as Debt repayments spending.
+  loan) are paid straight from your account, so they stay as Debt repayments
+  spending.
 
-*Re-check repayments*, at the bottom of the Debt page, re-files loan lines
-imported before 1.19.0 and pairs up earlier repayments.
+*Re-check repayments*, at the bottom of the Debt page, moves debt costs
+filed earlier (Bank fees, Insurance) to each debt's own line and pairs up
+earlier repayments.
 
 ### Borrowed money
 

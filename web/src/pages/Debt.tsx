@@ -67,6 +67,7 @@ function DebtCard({ d, onSave }: { d: DebtAccount; onSave: (p: Partial<Record<'p
 
       <div className="form-grid">
         <PlanInput label="Planned repayment per period" value={d.planned_payment} onSave={(v) => onSave({ planned_payment: v })} />
+        {/* Same number as this debt's line under Debt repayments on the Plan page. */}
         <PlanInput label="Interest rate" value={d.interest_rate} suffix="% a year" onSave={(v) => onSave({ interest_rate: v })} />
         {d.type === 'credit' && <PlanInput label="Credit limit" value={d.credit_limit} onSave={(v) => onSave({ credit_limit: v })} />}
       </div>
@@ -84,7 +85,7 @@ function DebtCard({ d, onSave }: { d: DebtAccount; onSave: (p: Partial<Record<'p
           <tr>
             <td className="muted">Interest, fees &amp; cover</td>
             <td className="num">{money(p.costs)}</td>
-            <td className="muted">spending (Bank fees / Insurance)</td>
+            <td className="muted">cost of the debt</td>
           </tr>
           {p.purchases > 0 && (
             <tr>
@@ -196,8 +197,9 @@ export default function Debt() {
       )}
 
       <p className="small muted">
-        Credit cards and loans you import statements for. A repayment into one of them is a transfer; only its interest, fees and
-        cover are spending, and the rest pays the balance down — planned like savings on the <Link to="/budget">Plan</Link> page.
+        Credit cards and loans you import statements for. Each has its own line under Debt repayments on the{' '}
+        <Link to="/budget">Plan</Link> page: planned = the repayment below, actual = the debt's interest, fees and cover plus how much the
+        balance came down. The repayment itself is a transfer from the paying account.
         Accounts are added under <Link to="/setup">Setup → Accounts</Link> (type Credit card or Loan).
       </p>
 

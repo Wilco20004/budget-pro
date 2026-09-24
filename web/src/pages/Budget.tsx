@@ -2,9 +2,9 @@ import { Fragment, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import PaymentPlans from '../components/PaymentPlans';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
-import { money } from '../format';
+import { money, shortDate } from '../format';
 import { Link } from 'react-router-dom';
-import { BudgetLine, DebtOverview, PaymentPlan } from '../types';
+import { BudgetLine, PaymentPlan } from '../types';
 
 const KIND_TITLE: Record<string, string> = { income: 'Expected income', expense: 'Spending', savings: 'Savings' };
 
@@ -12,7 +12,6 @@ export default function Budget() {
   const { selected } = usePeriod();
   const [lines, setLines] = useState<BudgetLine[]>([]);
   const [plans, setPlans] = useState<PaymentPlan[]>([]);
-  const [debts, setDebts] = useState<DebtOverview | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [setDefault, setSetDefault] = useState(true);
   const [dirty, setDirty] = useState(false);
@@ -34,9 +33,6 @@ export default function Budget() {
       .catch((e) => setError(e.message));
   };
   useEffect(() => load(), [selected?.start]);
-  useEffect(() => {
-    if (selected) api.debts(selected.start).then(setDebts).catch(() => setDebts(null));
-  }, [selected?.start]);
 
   // What a line plans in total: the amount typed in plus payment plan instalments due this period.
   const lineTotal = (l: BudgetLine) => (parseFloat(values[l.category_id]) || 0) + l.plans + l.goals;
@@ -44,10 +40,7 @@ export default function Budget() {
   const kidsTotal = (l: BudgetLine) => lines.filter((x) => x.parent_id === l.category_id).reduce((a, x) => a + lineTotal(x), 0);
   const total = (kind: string) => lines.filter((l) => l.kind === kind).reduce((a, l) => a + lineTotal(l), 0);
   const income = total('income');
-  // Repayments to tracked cards/loans: their costs are in Bank fees etc.; what
-  // pays the balance down is planned here, like savings.
-  const paydown = debts?.totals.planned_paydown ?? 0;
-  const out = total('expense') + total('savings') + paydown;
+  const out = total('expense') + total('savings');
 
   async function save() {
     if (!selected) return;
@@ -85,7 +78,7 @@ export default function Budget() {
         <div className="tile">
           <div className="label">Planned out</div>
           <div className="value">{money(out, { whole: true })}</div>
-          <div className="sub">spending + savings{paydown ? ' + debt paydown' : ''}</div>
+          <div className="sub">spending + savings</div>
         </div>
         <div className="tile">
           <div className="label">Unallocated</div>
@@ -154,8 +147,11 @@ export default function Budget() {
                         {l.goals > 0 && (
                           <div className="small muted">+ {money(l.goals, { whole: true })} savings goal top-ups</div>
                         )}
-                        {l.plans > 0 && (
-                          <div className="small muted">+ {money(l.plans, { whole: true })} payment plans this period</div>
+                        {l.debt && (
+                          <div className="small muted">
+                            {l.debt.owed !== null ? `owes ${money(l.debt.owed, { whole: true })} · ` : ''}
+                            <Link to="/debt">debt account</Link> · actual = cost + paid down
+                          </div>
                         )}
                       </td>
                       <td className="num">
@@ -190,6 +186,23 @@ export default function Budget() {
                         />
                       </td>
                     </tr>
+                    {plans
+                      .filter((p) => p.category_id === l.category_id && (p.this_period ?? 0) > 0)
+                      .map((p) => (
+                        <tr key={p.id} className="sub-row">
+                          <td>
+                            <span className="muted">↳ </span>🗓 {p.name}
+                            <div className="small muted">
+                              payment plan · {p.paid_count}/{p.instalments} paid{p.next_due ? ` · due ${shortDate(p.next_due)}` : ''}
+                            </div>
+                          </td>
+                          <td className="num small muted">—</td>
+                          <td className="num small muted">—</td>
+                          <td className="num small" title="Set by the payment plan — edit it in Payment plans below">
+                            {money(p.this_period ?? 0, { whole: true })}
+                          </td>
+                        </tr>
+                      ))}
                     </Fragment>
                   ))}
                 </tbody>
@@ -203,43 +216,6 @@ export default function Budget() {
         <PaymentPlans periodStart={selected.start} plans={plans} categories={lines} onChange={() => load(true)} />
       )}
 
-      {debts && debts.debts.length > 0 && (
-        <div className="card">
-          <div className="row" style={{ marginBottom: '0.25rem' }}>
-            <h2 style={{ margin: 0 }}>Debt paydown</h2>
-            <span className="spacer" />
-            <Link to="/debt" className="small">
-              Plan repayments
-            </Link>
-          </div>
-          <p className="small muted" style={{ marginTop: 0 }}>
-            Repayments to your tracked cards and loans. Their interest and fees are spending (in Bank fees); the rest pays the
-            balance down and is planned here, like savings.
-          </p>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Account</th>
-                  <th className="num">Owed</th>
-                  <th className="num">Repayment</th>
-                  <th className="num">Pays down</th>
-                </tr>
-              </thead>
-              <tbody>
-                {debts.debts.map((d) => (
-                  <tr key={d.account_id}>
-                    <td>{d.name}</td>
-                    <td className="num">{d.owed === null ? '—' : money(d.owed, { whole: true })}</td>
-                    <td className="num">{d.planned_payment ? money(d.planned_payment, { whole: true }) : <Link to="/debt" className="small">set</Link>}</td>
-                    <td className="num">{money(d.planned_paydown, { whole: true })}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       <div className="row">
         <label className="row small" style={{ gap: 4 }}>

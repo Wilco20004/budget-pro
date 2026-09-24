@@ -3,6 +3,7 @@ import { db } from '../db';
 import { publishSensors } from '../ha';
 import { periodKpis, trend } from '../services/kpis';
 import { listPlans, planBudget } from '../services/paymentPlans';
+import { debtOverview, ensureDebtCategories } from '../services/debts';
 import { goalBudget } from '../services/savings';
 import { previousPeriod, resolvePeriod } from '../services/periods';
 import { h, num, round2 } from '../util';
@@ -16,6 +17,8 @@ budgetsRouter.get(
   h((req, res) => {
     const period = resolvePeriod(req.params.period);
     const prev = previousPeriod(period);
+    ensureDebtCategories();
+    const debtByCategory = new Map(debtOverview(period).debts.map((d) => [d.category_id, d]));
     // Own figures for a parent with subcategories: its row plans what isn't split further.
     const own = (c: { actual: number; own_actual?: number }) => c.own_actual ?? c.actual;
     const prevActual = new Map(periodKpis(prev).categories.map((c) => [c.category_id, own(c)]));
@@ -46,6 +49,10 @@ budgetsRouter.get(
         goals: r.kind === 'income' ? 0 : goals.get(r.category_id) ?? 0,
         previous_actual: prevActual.get(r.category_id) ?? 0,
         actual: actual.get(r.category_id) ?? 0,
+        // A tracked card/loan's own line: what's owed, for the Plan page.
+        debt: debtByCategory.has(r.category_id)
+          ? { account_id: debtByCategory.get(r.category_id)!.account_id, owed: debtByCategory.get(r.category_id)!.owed }
+          : null,
       })),
       payment_plans: listPlans(period).filter((p) => p.this_period || p.status === 'active' || p.status === 'upcoming'),
     });

@@ -5,10 +5,11 @@ import { addDays, currentPeriod, parseIso, Period, previousPeriod, recentPeriods
 // Debt accounts: credit cards and loans you import statements for.
 //
 // How they count (chosen with the user): a repayment into a debt account
-// you track is a transfer on the paying side; on the debt account, only the
-// cost of the debt — interest, fees, insurance — is spending. The rest of
-// the repayment reduces the balance: "debt paydown", a planned outflow like
-// savings. Purchases on a card are spending in their own categories.
+// you track is a transfer on the paying side. Each debt account has its own
+// subcategory under Debt repayments (1.20.0): its budget is the planned
+// repayment, and its actual is the debt's cost — interest, fees and cover,
+// filed there — plus how much the balance came down ("paydown", added in
+// the KPIs). Purchases on a card are spending in their own categories.
 //
 // Balances are stored from the holder's side (owed = negative), so
 // owed = −balance.
@@ -27,6 +28,86 @@ interface AccountRow {
   planned_payment: number | null;
   interest_rate: number | null;
   credit_limit: number | null;
+  debt_category_id: string | null;
+}
+
+function nextSortOrder(): number {
+  return ((db.prepare('SELECT MAX(sort_order) AS m FROM categories').get() as { m: number | null }).m ?? 0) + 1;
+}
+
+/** Creates (or re-links) the Debt repayments subcategory of every debt
+ *  account, and the Debt repayments parent if it's missing. */
+export function ensureDebtCategories(): Map<string, string> {
+  const out = new Map<string, string>();
+  const accounts = db.prepare("SELECT * FROM accounts WHERE type IN ('credit', 'loan')").all() as AccountRow[];
+  if (!accounts.length) return out;
+  const t = new Date().toISOString();
+  db.transaction(() => {
+    let parent = db.prepare("SELECT id, group_id FROM categories WHERE name = 'Debt repayments' AND parent_id IS NULL").get() as
+      | { id: string; group_id: string | null }
+      | undefined;
+    if (!parent) {
+      parent = { id: uuid(), group_id: null };
+      db.prepare(
+        `INSERT INTO categories (id, name, kind, icon, requires_slip, default_budget, sort_order, created_at, updated_at)
+         VALUES (?, 'Debt repayments', 'expense', '💳', 0, 0, ?, ?, ?)`
+      ).run(parent.id, nextSortOrder(), t, t);
+    }
+    for (const a of accounts) {
+      const linked = a.debt_category_id ? db.prepare('SELECT id FROM categories WHERE id = ?').get(a.debt_category_id) : undefined;
+      if (linked) {
+        out.set(a.id, a.debt_category_id!);
+        continue;
+      }
+      // Reuse a category already named after the account, else make one.
+      let cat = db.prepare('SELECT id FROM categories WHERE name = ?').get(a.name) as { id: string } | undefined;
+      if (!cat) {
+        cat = { id: uuid() };
+        db.prepare(
+          `INSERT INTO categories (id, name, kind, icon, requires_slip, default_budget, sort_order, group_id, parent_id, created_at, updated_at)
+           VALUES (?, ?, 'expense', ?, 0, ?, ?, ?, ?, ?, ?)`
+        ).run(cat.id, a.name, a.type === 'loan' ? '🏦' : '💳', a.planned_payment ?? 0, nextSortOrder(), parent.group_id, parent.id, t, t);
+      }
+      db.prepare('UPDATE accounts SET debt_category_id = ? WHERE id = ?').run(cat.id, a.id);
+      out.set(a.id, cat.id);
+    }
+  })();
+  return out;
+}
+
+/** The planned repayment in a period: the debt subcategory's budget. */
+function plannedFor(a: AccountRow, period: Period): number {
+  if (!a.debt_category_id) return a.planned_payment ?? 0;
+  const r = db
+    .prepare(
+      'SELECT COALESCE(b.amount, c.default_budget) AS p FROM categories c LEFT JOIN budget_lines b ON b.category_id = c.id AND b.period_start = ? WHERE c.id = ?'
+    )
+    .get(period.start, a.debt_category_id) as { p: number } | undefined;
+  return r?.p ?? 0;
+}
+
+/** Sets the planned repayment from now on: the subcategory's default, with
+ *  this and later periods' one-off amounts cleared so it applies. */
+export function setPlannedPayment(accountId: string, amount: number | null) {
+  const cat = ensureDebtCategories().get(accountId);
+  db.prepare('UPDATE accounts SET planned_payment = ? WHERE id = ?').run(amount, accountId);
+  if (!cat) return;
+  db.prepare('UPDATE categories SET default_budget = ? WHERE id = ?').run(amount ?? 0, cat);
+  db.prepare('DELETE FROM budget_lines WHERE category_id = ? AND period_start >= ?').run(cat, currentPeriod().start);
+}
+
+/** How much each debt came down in a period, per debt subcategory. */
+export function paydownByCategory(period: Period): Map<string, number> {
+  const out = new Map<string, number>();
+  const today = todayIso();
+  if (period.start > today) return out;
+  for (const a of db.prepare("SELECT * FROM accounts WHERE type IN ('credit', 'loan') AND debt_category_id IS NOT NULL").all() as AccountRow[]) {
+    const start = owedAt(a.id, addDays(period.start, -1));
+    const end = owedAt(a.id, period.end < today ? period.end : today);
+    if (start === null || end === null) continue;
+    out.set(a.debt_category_id!, r2((out.get(a.debt_category_id!) ?? 0) + start - end));
+  }
+  return out;
 }
 
 function categoryId(where: string): string | null {
@@ -100,7 +181,7 @@ export function describeDebt(a: AccountRow, period: Period = currentPeriod()) {
   const owedEnd = owedAt(a.id, period.end < today ? period.end : today);
   const now = flows(a.id, period);
   const prev = flows(a.id, previousPeriod(period));
-  const planned = a.planned_payment ?? 0;
+  const planned = plannedFor(a, period);
   // Fees and cover come out of each repayment before it reaches interest
   // and capital, so they don't count towards paying the balance off.
   const otherCosts = r2(prev.costs - prev.interest);
@@ -110,7 +191,8 @@ export function describeDebt(a: AccountRow, period: Period = currentPeriod()) {
     name: a.name,
     bank: a.bank,
     type: a.type,
-    planned_payment: a.planned_payment,
+    category_id: a.debt_category_id,
+    planned_payment: planned || null,
     interest_rate: a.interest_rate,
     credit_limit: a.credit_limit,
     owed,
@@ -156,21 +238,23 @@ export function debtOverview(period: Period = currentPeriod()) {
  *  are Bank fees; purchases are left to the merchant rules. */
 export function categorizeDebtLines(ids: string[]): number {
   const transfer = categoryId("kind = 'transfer'");
-  const fees = categoryId("name = 'Bank fees'");
-  const insurance = categoryId("name = 'Insurance'") ?? fees;
+  const debtCats = ensureDebtCategories();
   const tx = db.prepare(
-    `SELECT t.id, t.amount, t.description, a.type FROM transactions t JOIN accounts a ON a.id = t.account_id
+    `SELECT t.id, t.amount, t.description, a.type, a.id AS account_id FROM transactions t JOIN accounts a ON a.id = t.account_id
      WHERE t.id = ? AND a.type IN ('credit', 'loan') AND NOT EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = t.id)`
   );
   const ins = db.prepare("INSERT INTO transaction_splits (id, transaction_id, category_id, amount, source) VALUES (?, ?, ?, ?, 'rule')");
   let n = 0;
   db.transaction(() => {
     for (const id of ids) {
-      const t = tx.get(id) as { id: string; amount: number; description: string; type: string } | undefined;
+      const t = tx.get(id) as { id: string; amount: number; description: string; type: string; account_id: string } | undefined;
       if (!t) continue;
+      // The debt's cost (interest, fees, cover) is its own Debt repayments
+      // line; a loan's repayment arriving is a transfer.
+      const own = debtCats.get(t.account_id) ?? null;
       let cat: string | null = null;
-      if (t.type === 'loan') cat = t.amount > 0 ? transfer : /insurance|premium|\bcpp\b/i.test(t.description) ? insurance : fees;
-      else if (t.amount < 0 && /^(interest|card fee|.*\bfee)$/i.test(t.description.trim())) cat = fees;
+      if (t.type === 'loan') cat = t.amount > 0 ? transfer : own;
+      else if (t.amount < 0 && /^(interest|card fee|.*\bfee)$/i.test(t.description.trim())) cat = own;
       if (!cat) continue;
       ins.run(uuid(), t.id, cat, t.amount);
       n++;
@@ -258,6 +342,32 @@ export function rebalanceCardImports(): number {
   return n;
 }
 
+/** 1.20.0: debt costs filed as Bank fees / Insurance (by 1.19.0, or by
+ *  hand before debts had their own lines) move to the debt's subcategory —
+ *  on a card or loan account, a fee or cover line is the cost of that debt. */
+function moveDebtCosts(): number {
+  const cats = ensureDebtCategories();
+  const rows = db
+    .prepare(
+      `SELECT s.id, t.account_id, t.description FROM transaction_splits s
+       JOIN transactions t ON t.id = s.transaction_id JOIN accounts a ON a.id = t.account_id
+       JOIN categories c ON c.id = s.category_id
+       WHERE a.type IN ('credit', 'loan') AND t.amount < 0 AND c.name IN ('Bank fees', 'Insurance')`
+    )
+    .all() as { id: string; account_id: string; description: string }[];
+  const set = db.prepare("UPDATE transaction_splits SET category_id = ?, source = 'rule' WHERE id = ?");
+  let n = 0;
+  db.transaction(() => {
+    for (const r of rows) {
+      const cat = cats.get(r.account_id);
+      if (!cat) continue;
+      set.run(cat, r.id);
+      n++;
+    }
+  })();
+  return n;
+}
+
 export function recheckDebtLines(): { refiled: number; paired: number; rebalanced: number } {
   const rebalanced = rebalanceCardImports();
   const ids = (
@@ -277,6 +387,6 @@ export function recheckDebtLines(): { refiled: number; paired: number; rebalance
   db.transaction(() => {
     for (const id of ids) clear.run(id, transferId, id);
   })();
-  const refiled = categorizeDebtLines(ids);
+  const refiled = categorizeDebtLines(ids) + moveDebtCosts();
   return { refiled, paired: pairDebtPayments(), rebalanced };
 }
