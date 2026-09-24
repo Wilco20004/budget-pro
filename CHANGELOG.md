@@ -1,5 +1,14 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.12.0 — 2026-09-24
+
+- Slip keywords: the built-in **BABY → Kids** keyword also caught Baby
+  Marrows, Baby Corn and Baby Gem Squash, so it is replaced by specific
+  baby products (baby wipes, food, powder, oil, lotion, shampoo, formula).
+  New: growth milk → Kids; toilet rolls, fabric conditioner/softener,
+  washing powder → Household; hair spray → Personal care. Applied once to
+  existing databases; keywords you already have are left alone.
+
 ## 1.11.0 — 2026-09-24
 
 - **Imported emails leave the inbox**: moved to a `BudgetPro` folder by

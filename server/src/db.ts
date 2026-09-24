@@ -345,7 +345,7 @@ if (categoryCount === 0) {
   const insertKeyword = db.prepare('INSERT INTO category_keywords (id, keyword, category_id) VALUES (?, ?, ?)');
   const keywords: [string, string][] = [
     ['NAPPIES', 'Kids'], ['NAPPY', 'Kids'], ['DIAPER', 'Kids'], ['HUGGIES', 'Kids'], ['PAMPERS', 'Kids'],
-    ['WIPES', 'Kids'], ['BABY', 'Kids'], ['FORMULA', 'Kids'], ['PURITY', 'Kids'], ['NAN ', 'Kids'],
+    ['WIPES', 'Kids'], ['FORMULA', 'Kids'], ['PURITY', 'Kids'], ['NAN ', 'Kids'],
     ['PANADO', 'Medical'], ['MEDICINE', 'Medical'], ['SYRUP', 'Medical'], ['TABLETS', 'Medical'],
     ['VITAMIN', 'Medical'], ['PLASTERS', 'Medical'], ['CALPOL', 'Medical'], ['NUROFEN', 'Medical'],
     ['GRAND-PA', 'Medical'], ['STREPSILS', 'Medical'],
@@ -376,6 +376,33 @@ function applySeed(version: string, merchants: [string, string, string][]) {
     db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, t);
   })();
 }
+
+// 1.12.0 slip keywords: "BABY" alone put Baby Marrows / Baby Corn under Kids,
+// so it's replaced by specific baby products; plus lines seen on Sixty60
+// orders. Once per database; a keyword that already exists is left alone.
+(function seedKeywords2() {
+  const key = 'seed_keywords_2';
+  if (db.prepare('SELECT 1 FROM settings WHERE key = ?').get(key)) return;
+  const catId = (name: string) =>
+    (db.prepare('SELECT id FROM categories WHERE name = ?').get(name) as { id: string } | undefined)?.id ?? null;
+  const add: [string, string][] = [
+    ['BABY WIPES', 'Kids'], ['BABY FOOD', 'Kids'], ['BABY POWDER', 'Kids'], ['BABY OIL', 'Kids'], ['BABY LOTION', 'Kids'],
+    ['BABY SHAMPOO', 'Kids'], ['BABY FORMULA', 'Kids'], ['GROWTH MILK', 'Kids'], ['GRWTH', 'Kids'],
+    ['TOILET ROLL', 'Household'], ['FABRIC CONDITIONER', 'Household'], ['FABRIC SOFTENER', 'Household'], ['WASHING POWDER', 'Household'],
+    ['HAIR SPRAY', 'Personal care'],
+  ];
+  db.transaction(() => {
+    const kids = catId('Kids');
+    if (kids) db.prepare("DELETE FROM category_keywords WHERE keyword = 'BABY' AND category_id = ?").run(kids);
+    const exists = db.prepare('SELECT 1 FROM category_keywords WHERE upper(keyword) = ?');
+    const ins = db.prepare('INSERT INTO category_keywords (id, keyword, category_id) VALUES (?, ?, ?)');
+    for (const [kw, cat] of add) {
+      const id = catId(cat);
+      if (id && !exists.get(kw)) ins.run(uuid(), kw, id);
+    }
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, now());
+  })();
+})();
 
 // Starter groups, with the default categories (by name, if they still exist
 // and aren't grouped yet) placed in them. Categories the user added stay
