@@ -1,5 +1,6 @@
 import { ImapFlow } from 'imapflow';
-import { ParsedMail } from 'mailparser';
+import { ParsedMail, simpleParser } from 'mailparser';
+import { ingestFnbAlert, looksLikeFnbAlert } from '../notifications/service';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
 import { publishSensors } from '../ha';
@@ -19,7 +20,7 @@ import { ensureFolder, fetchMessage, listMessages, MessageSummary, summaryFor, w
 //     till-slip parser on the email's text.
 // Each message is handled once (emails table); the mailbox isn't changed.
 
-export type EmailStatus = 'receipt' | 'statement' | 'ignored' | 'failed';
+export type EmailStatus = 'receipt' | 'statement' | 'transactions' | 'ignored' | 'failed';
 
 interface EmailState {
   uid_validity: string;
@@ -88,9 +89,30 @@ export async function handleMail(mail: ParsedMail): Promise<{ status: EmailStatu
   let receiptId: string | null = null;
   let statements = 0;
   let slips = 0;
+  let alerts = 0;
+  let alertTx = 0;
+
+  // FNB transaction alerts: the email itself (auto-forwarded), or a batch
+  // of them attached as .eml files. The subject is the whole alert.
+  const alert = (text: string, when: Date | undefined) => {
+    const r = ingestFnbAlert(text, when ?? mail.date ?? new Date(), 'FNB alert email');
+    alerts++;
+    alertTx += r.transaction_ids.length;
+  };
+  if (mail.subject && looksLikeFnbAlert(mail.subject)) alert(mail.subject, mail.date);
 
   for (const a of mail.attachments ?? []) {
     const name = a.filename || 'attachment';
+    if (a.contentType === 'message/rfc822') {
+      try {
+        const inner = await simpleParser(a.content);
+        const subject = inner.subject ?? name.replace(/\.eml$/i, '');
+        if (looksLikeFnbAlert(subject)) alert(subject, inner.date);
+      } catch {
+        // not a readable email — nothing to do with it
+      }
+      continue;
+    }
     // Images shown inside the email's HTML (logos, signatures, a forwarded
     // letterhead) aren't slips; attached photos are.
     if (SLIP_IMAGE.test(a.contentType) && (a.contentDisposition === 'inline' || a.related || embedded(mail, a.cid))) continue;
@@ -119,7 +141,9 @@ export async function handleMail(mail: ParsedMail): Promise<{ status: EmailStatu
     }
   }
 
+  if (alerts) notes.unshift(`${alerts} FNB alert(s): ${alertTx} new provisional transaction(s)`);
   if (statements || slips) return { status: statements ? 'statement' : 'receipt', detail: notes.join('; '), receipt_id: receiptId };
+  if (alerts) return { status: 'transactions', detail: notes.join('; '), receipt_id: null };
   if (notes.length) return { status: 'failed', detail: notes.join('; '), receipt_id: null };
   return { status: 'ignored', detail: 'No slip, statement or receipt found', receipt_id: null };
 }

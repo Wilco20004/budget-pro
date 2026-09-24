@@ -6,6 +6,7 @@ import { EmailStatus } from '../types';
 const STATUS_TEXT: Record<string, string> = {
   receipt: '🧾 slip',
   statement: '🏦 statement',
+  transactions: '📩 bank alerts',
   ignored: '– ignored',
   failed: '✕ failed',
 };

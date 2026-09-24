@@ -2,7 +2,9 @@ import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
 import { autoCategorize } from '../services/categorize';
 import { addDays } from '../services/periods';
+import { hintNumbers } from '../importers';
 import { looksLikeDiscovery, parseDiscoveryNotification } from './discovery';
+import { looksLikeFnbAlert, parseFnbAlert } from './fnb';
 
 export interface IncomingNotification {
   package?: string | null;
@@ -31,7 +33,7 @@ interface AccountRow {
 function accountForLast4(last4: string | null): AccountRow | null {
   if (!last4) return null;
   const accounts = db.prepare('SELECT id, name, match_hint FROM accounts').all() as AccountRow[];
-  return accounts.find((a) => (a.match_hint ?? '').replace(/\D/g, '').endsWith(last4)) ?? null;
+  return accounts.find((a) => hintNumbers(a.match_hint).some((h) => h.endsWith(last4))) ?? null;
 }
 
 function parsePostedAt(v: IncomingNotification['posted_at']): Date | undefined {
@@ -47,7 +49,14 @@ function log(n: IncomingNotification, keepText: boolean, status: NotificationRes
   ).run(uuid(), now(), n.package ?? null, keepText ? n.title ?? null : null, keepText ? n.big_text || n.text || null : null, status, reason, txId);
 }
 
-function createProvisional(accountId: string, date: string, time: string | null, amount: number, description: string): string | null {
+function createProvisional(
+  accountId: string,
+  date: string,
+  time: string | null,
+  amount: number,
+  description: string,
+  source = 'phone notification'
+): string | null {
   const fingerprint = `notif:${accountId}|${date}|${time ?? ''}|${amount.toFixed(2)}|${description.toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
   const id = uuid();
   const t = now();
@@ -56,7 +65,7 @@ function createProvisional(accountId: string, date: string, time: string | null,
       `INSERT OR IGNORE INTO transactions (id, account_id, date, description, amount, fingerprint, provisional, notes, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`
     )
-    .run(id, accountId, date, description, amount, fingerprint, time ? `From phone notification at ${time}` : 'From phone notification', t, t);
+    .run(id, accountId, date, description, amount, fingerprint, time ? `From ${source} at ${time}` : `From ${source}`, t, t);
   return r.changes ? id : null;
 }
 
@@ -70,10 +79,55 @@ function onStatement(accountId: string, date: string, amount: number): boolean {
   );
 }
 
+/** On an imported statement already? FNB statements date a card purchase
+ *  when it's posted, a day or few after the alert. */
+function onStatementWithin(accountId: string, date: string, amount: number, days: number): boolean {
+  return Boolean(
+    db
+      .prepare('SELECT 1 FROM transactions WHERE account_id = ? AND provisional = 0 AND date BETWEEN ? AND ? AND ABS(amount - ?) < 0.005 LIMIT 1')
+      .get(accountId, date, addDays(date, days), amount)
+  );
+}
+
+/** One FNB transaction alert (from an email, SMS or push). Each side of the
+ *  money on an account set up in BudgetPro becomes a provisional
+ *  transaction, replaced when the statement arrives. */
+export function ingestFnbAlert(text: string, received: Date, source = 'FNB alert'): NotificationResult {
+  const n: IncomingNotification = { package: 'fnb', title: null, text };
+  const done = (status: NotificationResult['status'], reason: string | null, ids: string[] = [], keepText = true): NotificationResult => {
+    log(n, keepText, status, reason, ids[0] ?? null);
+    return { status, reason, transaction_ids: ids };
+  };
+  const p = parseFnbAlert(text, received);
+  if (p.kind === 'ignore') return done('ignored', p.reason);
+  if (p.kind === 'unknown') return done('unparsed', p.reason);
+  const ids: string[] = [];
+  let tracked = 0;
+  for (const leg of p.legs) {
+    const account = accountForLast4(leg.account);
+    if (!account) continue;
+    tracked++;
+    if (onStatementWithin(account.id, p.date, leg.amount, 4)) continue;
+    const id = createProvisional(account.id, p.date, p.time, leg.amount, leg.description, source);
+    if (id) ids.push(id);
+  }
+  // Accounts you don't track leave no content behind.
+  if (!tracked) return done('ignored', `Account ..${p.legs.map((l) => l.account).join(' / ..')} isn't set up in BudgetPro`, [], false);
+  if (!ids.length) return done('duplicate', 'Already on a statement, or received before');
+  autoCategorize(ids);
+  return done('imported', p.summary, ids);
+}
+
+export { looksLikeFnbAlert };
+
 export function ingestNotification(n: IncomingNotification): NotificationResult {
   const title = (n.title ?? '').trim();
   const body = (n.big_text || n.text || '').trim();
   const posted = parsePostedAt(n.posted_at);
+
+  if (looksLikeFnbAlert(body) || looksLikeFnbAlert(title)) {
+    return ingestFnbAlert(looksLikeFnbAlert(body) ? body : `${title} ${body}`, posted ?? new Date(), 'FNB notification');
+  }
 
   if (!looksLikeDiscovery(title, body)) {
     // Not a bank notification we understand: keep no content, just the fact.

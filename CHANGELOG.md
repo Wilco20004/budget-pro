@@ -1,5 +1,15 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.22.0 — 2026-09-24
+
+- **FNB transaction alerts** by email, auto-forwarded one at a time or
+  attached as a batch of .eml files, and as FNB phone notifications:
+  card purchases, withdrawals, payments in and out, and transfers between
+  accounts become provisional transactions. The statement replaces them;
+  alerts already on a statement (within 4 days) are skipped.
+- An account's match hint can list several numbers (comma-separated),
+  for when alerts and statements use different numbers.
+
 ## 1.21.0 — 2026-09-24
 
 - **Spending cards**: tick *Cleared in full every month* on a card that's

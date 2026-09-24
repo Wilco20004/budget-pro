@@ -85,6 +85,15 @@ fails with a certificate error, use your mail host's server name (the one
 its certificate is issued to) as `imap_host`. A filter in your normal
 mailbox can auto-forward the shop's emails. What happens per email:
 
+- **FNB transaction alerts** (the "FNB:-) R… reserved for purchase @ …"
+  emails) become provisional transactions straight away, like phone
+  notifications. The statement replaces them later. They can be forwarded
+  one by one (e.g. an auto-forward rule) or as a batch of attached emails.
+  Alerts for accounts you haven't set up are skipped, and non-money alerts
+  (overdrawn warnings, payment links) are ignored. FNB sometimes names an
+  account by a different number in alerts than on its statement (a credit
+  card's "FNB card a/c..777777"), so an account's match hint can list
+  several numbers, separated by commas;
 - statement attachments (Discovery or FNB PDF, CSV, OFX) are imported;
 - slip photos and PDF e-slips are read like uploaded slips;
 - otherwise the email itself is read as a receipt when it looks like one

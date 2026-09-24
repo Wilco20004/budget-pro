@@ -41,14 +41,23 @@ function fingerprint(accountId: string, date: string, amount: number, descriptio
 
 /** Picks the account whose match_hint appears in (or ends) an account
  *  number found in the file. */
+/** An account's match hint may list several numbers ("12345678901, 777777"). */
+export function hintNumbers(matchHint: string | null): string[] {
+  return (matchHint ?? '')
+    .split(/[,;/\s]+/)
+    .map((h) => h.replace(/\D/g, ''))
+    .filter((h) => h.length >= 4);
+}
+
 export function accountForHints(hints: string[]): string | null {
   const accounts = db.prepare('SELECT id, match_hint, flip_sign FROM accounts').all() as AccountRow[];
   for (const a of accounts) {
-    const h = (a.match_hint ?? '').replace(/\D/g, '');
+    for (const h of hintNumbers(a.match_hint)) {
     // hint "8901" matches file number "12345678901"; the reverse (a short
     // number found in the file matching inside a full hint) needs 6+ digits
     // so a stray "…5555" can't claim the wrong account.
-    if (h.length >= 4 && hints.some((x) => x.endsWith(h) || x === h || (x.length >= 6 && h.endsWith(x)))) return a.id;
+      if (hints.some((x) => x.endsWith(h) || x === h || (x.length >= 6 && h.endsWith(x)))) return a.id;
+    }
   }
   return null;
 }
