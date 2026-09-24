@@ -206,6 +206,11 @@ if (!hasColumn('transactions', 'provisional')) {
   db.exec('ALTER TABLE transactions ADD COLUMN provisional INTEGER NOT NULL DEFAULT 0');
 }
 
+// 1.7.0: a slip-required transaction can be reconciled without a slip —
+// 'lost' (the slip is gone) or 'single_category' (everything on it was the
+// one category, so there's nothing to split). NULL = a slip is expected.
+if (!hasColumn('transactions', 'no_slip_reason')) db.exec('ALTER TABLE transactions ADD COLUMN no_slip_reason TEXT');
+
 // 1.5.0: display groups ("Fixed", "Living", "Lifestyle") — a layer over
 // expense categories for dashboard/plan subtotals only. Budgets, splits and
 // reconciling stay per category.

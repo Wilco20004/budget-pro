@@ -159,6 +159,9 @@ transactionsRouter.post(
   })
 );
 
+/** Why a slip-required transaction is reconciled without a slip. */
+const NO_SLIP_REASONS = ['lost', 'single_category'];
+
 transactionsRouter.patch(
   '/:id',
   h((req, res) => {
@@ -167,6 +170,11 @@ transactionsRouter.patch(
     if (!t) notFound('Transaction not found');
     if ('notes' in (req.body ?? {})) db.prepare('UPDATE transactions SET notes = ? WHERE id = ?').run(str(req.body.notes), id);
     if ('ignored' in (req.body ?? {})) db.prepare('UPDATE transactions SET ignored = ? WHERE id = ?').run(req.body.ignored ? 1 : 0, id);
+    if ('no_slip_reason' in (req.body ?? {})) {
+      const r = req.body.no_slip_reason ?? null;
+      if (r !== null && !NO_SLIP_REASONS.includes(r)) throw new Error(`no_slip_reason must be one of ${NO_SLIP_REASONS.join(', ')} or null`);
+      db.prepare('UPDATE transactions SET no_slip_reason = ? WHERE id = ?').run(r, id);
+    }
     db.prepare('UPDATE transactions SET updated_at = ? WHERE id = ?').run(now(), id);
     publishSensors().catch(() => undefined);
     res.json(getTransaction(id));

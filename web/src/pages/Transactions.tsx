@@ -5,8 +5,8 @@ import CategorySelect from '../components/CategorySelect';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import ReceiptUpload from '../components/ReceiptUpload';
 import SplitEditor from '../components/SplitEditor';
-import { money, shortDate, STATUS_ICON, STATUS_LABEL, todayIso } from '../format';
-import { Account, Category, Transaction } from '../types';
+import { money, NO_SLIP_LABEL, shortDate, STATUS_ICON, STATUS_LABEL, todayIso } from '../format';
+import { Account, Category, NoSlipReason, Transaction } from '../types';
 
 const STATUSES = ['all', 'uncategorized', 'needs_slip', 'reconciled', 'ignored'] as const;
 const REMEMBER_KEY = 'budgetpro.remember';
@@ -15,6 +15,26 @@ function StatusChip({ status }: { status: string }) {
   return (
     <span className={`chip status-${status}`}>
       {STATUS_ICON[status]} {STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+/** Reconcile a slip-required transaction without a slip. */
+function SkipSlip({ tx, onSkip }: { tx: Transaction; onSkip: (reason: NoSlipReason) => void }) {
+  const only = tx.splits.length === 1 ? tx.splits[0].category_name : null;
+  return (
+    <span className="row small" style={{ gap: 6 }}>
+      <span className="muted">or skip:</span>
+      <button className="small" onClick={() => onSkip('lost')} title="The slip is gone — reconcile without one">
+        Slip lost
+      </button>
+      <button
+        className="small"
+        onClick={() => onSkip('single_category')}
+        title="Everything bought was this category, so there's nothing to split"
+      >
+        {only ? `All ${only}` : 'No split needed'}
+      </button>
     </span>
   );
 }
@@ -47,7 +67,19 @@ function Detail({
         {tx.receipt_id ? (
           <Link to={`/receipts/${tx.receipt_id}`}>View attached slip →</Link>
         ) : (
-          <ReceiptUpload compact transactionId={tx.id} onUploaded={() => setTimeout(onChanged, 400)} />
+          <>
+            <ReceiptUpload compact transactionId={tx.id} onUploaded={() => setTimeout(onChanged, 400)} />
+            {tx.no_slip_reason ? (
+              <span className="small">
+                Reconciled without a slip ({NO_SLIP_LABEL[tx.no_slip_reason]}).{' '}
+                <button className="link small" onClick={() => run(api.patchTransaction(tx.id, { no_slip_reason: null }))}>
+                  Undo
+                </button>
+              </span>
+            ) : (
+              tx.status === 'needs_slip' && <SkipSlip tx={tx} onSkip={(reason) => run(api.patchTransaction(tx.id, { no_slip_reason: reason }))} />
+            )}
+          </>
         )}
       </div>
       <div className="row">
@@ -326,6 +358,31 @@ export default function Transactions() {
                     <td className={`num ${t.amount > 0 ? 'pos' : 'neg'}`}>{money(t.amount, { signed: true })}</td>
                     <td>
                       <StatusChip status={t.status} />
+                      {t.status === 'needs_slip' && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <select
+                            className="small"
+                            value=""
+                            aria-label="Skip the slip"
+                            onChange={(e) =>
+                              e.target.value &&
+                              api
+                                .patchTransaction(t.id, { no_slip_reason: e.target.value as NoSlipReason })
+                                .then(load)
+                                .catch((err) => setError(err.message))
+                            }
+                          >
+                            <option value="">Skip slip…</option>
+                            <option value="lost">Slip lost</option>
+                            <option value="single_category">
+                              {t.splits.length === 1 ? `All ${t.splits[0].category_name}` : 'No split needed'}
+                            </option>
+                          </select>
+                        </div>
+                      )}
+                      {t.status === 'reconciled' && t.no_slip_reason && !t.receipt_id ? (
+                        <div className="small muted">no slip · {NO_SLIP_LABEL[t.no_slip_reason]}</div>
+                      ) : null}
                       {t.provisional ? (
                         <div className="small muted" title="From a phone notification — replaced by the statement line when you import it">
                           📱 provisional

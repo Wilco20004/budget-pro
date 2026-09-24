@@ -1,5 +1,15 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.7.0 — 2026-09-24
+
+- **Skip the slip**: a transaction in a slip-required category can be
+  reconciled without one — *Slip lost*, or *All <category>* when everything
+  bought was that one category so there's nothing to split. Use *Skip slip…*
+  on the row in the *Needs slip* tab, or the buttons in the transaction's
+  details (with *Undo*). Attaching a slip later still works as normal.
+  Skipped transactions don't count against slip coverage.
+- The `categorize_transaction` MCP tool takes an optional `no_slip_reason`.
+
 ## 1.6.0 — 2026-09-24
 
 - **Discovery transaction-history PDFs**: one file covering any date range

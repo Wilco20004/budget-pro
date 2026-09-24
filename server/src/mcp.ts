@@ -253,12 +253,18 @@ function buildServer(): McpServer {
     {
       title: 'Categorise a transaction',
       description:
-        'Assign one category to a transaction (replacing its splits). remember=true also teaches the merchant rule so future transactions like it are categorised automatically.',
-      inputSchema: { transaction_id: z.string(), category_id: z.string(), remember: z.boolean().optional() },
+        'Assign one category to a transaction (replacing its splits). remember=true also teaches the merchant rule so future transactions like it are categorised automatically. no_slip_reason reconciles a slip-required category without a slip: "lost" (the slip is gone) or "single_category" (everything bought was this category) — only when the user says so.',
+      inputSchema: {
+        transaction_id: z.string(),
+        category_id: z.string(),
+        remember: z.boolean().optional(),
+        no_slip_reason: z.enum(['lost', 'single_category']).optional(),
+      },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
-    async ({ transaction_id, category_id, remember }) => {
+    async ({ transaction_id, category_id, remember, no_slip_reason }) => {
       const also = setSingleCategory(transaction_id, category_id, remember ?? false);
+      if (no_slip_reason) db.prepare('UPDATE transactions SET no_slip_reason = ? WHERE id = ?').run(no_slip_reason, transaction_id);
       return json({ ok: true, also_categorized: also });
     }
   );

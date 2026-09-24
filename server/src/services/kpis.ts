@@ -213,7 +213,8 @@ export function periodKpis(period: Period): PeriodKpis {
       `SELECT COUNT(DISTINCT t.id) AS n,
               COUNT(DISTINCT CASE WHEN EXISTS (SELECT 1 FROM receipts r WHERE r.transaction_id = t.id) THEN t.id END) AS with_slip
        FROM transactions t JOIN transaction_splits s ON s.transaction_id = t.id JOIN categories c ON c.id = s.category_id
-       WHERE t.date BETWEEN ? AND ? AND t.ignored = 0 AND c.requires_slip = 1`
+       WHERE t.date BETWEEN ? AND ? AND t.ignored = 0 AND c.requires_slip = 1
+         AND (t.no_slip_reason IS NULL OR EXISTS (SELECT 1 FROM receipts r WHERE r.transaction_id = t.id))`
     )
     .get(period.start, period.end) as { n: number; with_slip: number };
 

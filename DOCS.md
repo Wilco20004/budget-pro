@@ -127,6 +127,12 @@ e-slips in the inbox. BudgetPro then:
    levy, OCR misses, rounding) goes to the shop's default category, so the
    split always adds up.
 
+No slip? Use **Skip slip…** on the row (or the buttons in the
+transaction's details): *Slip lost*, or *All <category>* when the whole
+purchase really was that category. The transaction is reconciled as it is,
+shows "no slip" in its status, and is left out of slip coverage. *Undo* puts
+it back in *Needs slip*; attaching a slip later works as normal.
+
 Correct a line's category and press **Save** — the product remembers, and
 the transaction's split updates. **Product database** shows everything
 you've bought with times bought, last and average price.

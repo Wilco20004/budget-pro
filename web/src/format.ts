@@ -48,6 +48,12 @@ export const STATUS_LABEL: Record<string, string> = {
   ignored: 'Ignored',
 };
 
+/** Why a slip-required transaction was reconciled without a slip. */
+export const NO_SLIP_LABEL: Record<string, string> = {
+  lost: 'slip lost',
+  single_category: 'all one category',
+};
+
 export const STATUS_ICON: Record<string, string> = {
   uncategorized: '●',
   needs_slip: '🧾',

@@ -87,7 +87,8 @@ export function autoCategorize(transactionIds?: string[]): number {
 /** Status of one transaction, derived rather than stored so it can't drift:
  *   ignored        — user excluded it
  *   uncategorized  — no splits, or splits don't add up to the amount
- *   needs_slip     — a split is in a requires_slip category and no receipt is linked
+ *   needs_slip     — a split is in a requires_slip category, no receipt is linked
+ *                    and the slip wasn't waived (no_slip_reason)
  *   reconciled     — done */
 export const TX_STATUS_SQL = `
   CASE
@@ -97,7 +98,8 @@ export const TX_STATUS_SQL = `
     WHEN EXISTS (
       SELECT 1 FROM transaction_splits s JOIN categories c ON c.id = s.category_id
       WHERE s.transaction_id = t.id AND c.requires_slip = 1
-    ) AND NOT EXISTS (SELECT 1 FROM receipts r WHERE r.transaction_id = t.id) THEN 'needs_slip'
+    ) AND t.no_slip_reason IS NULL
+      AND NOT EXISTS (SELECT 1 FROM receipts r WHERE r.transaction_id = t.id) THEN 'needs_slip'
     ELSE 'reconciled'
   END`;
 

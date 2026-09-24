@@ -79,7 +79,9 @@ export interface Split {
   requires_slip: number;
 }
 
-export type TxStatus = 'uncategorized' | 'needs_slip' | 'reconciled' | 'ignored';
+export type NoSlipReason = 'lost' | 'single_category';
+
+export type TxStatus ='uncategorized' | 'needs_slip' | 'reconciled' | 'ignored';
 
 export interface Transaction {
   id: string;
@@ -97,6 +99,8 @@ export interface Transaction {
   receipt_id?: string | null;
   /** 1 = made from a phone notification; replaced when the statement arrives. */
   provisional?: number;
+  /** Set when a slip-required transaction is reconciled without a slip. */
+  no_slip_reason?: NoSlipReason | null;
   splits: Split[];
 }
 
