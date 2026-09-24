@@ -307,6 +307,46 @@ db.exec(`
 if (!hasColumn('transactions', 'payment_plan_id')) {
   db.exec('ALTER TABLE transactions ADD COLUMN payment_plan_id TEXT REFERENCES payment_plans(id) ON DELETE SET NULL');
 }
+// 1.15.0: savings goals. A goal is either
+//   physical — it has its own account (tracks_account = 1) and its balance
+//              is that account's balance once statements are imported, or
+//   virtual  — a pot inside a shared account (or nowhere in particular):
+//              its balance is opening_balance + its movements.
+// Movements are top-ups (+) and withdrawals (−), entered by hand, allocated
+// from a transaction, or linked automatically via match_pattern. topup is the
+// planned contribution per period; it's added to category_id's budget.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS savings_goals (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    icon TEXT,
+    target REAL,
+    target_date TEXT,
+    account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+    tracks_account INTEGER NOT NULL DEFAULT 0,
+    category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
+    topup REAL NOT NULL DEFAULT 0,
+    match_pattern TEXT,
+    opening_balance REAL NOT NULL DEFAULT 0,
+    archived INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS savings_movements (
+    id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    amount REAL NOT NULL,
+    transaction_id TEXT REFERENCES transactions(id) ON DELETE CASCADE,
+    note TEXT,
+    source TEXT NOT NULL DEFAULT 'manual',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_savings_movements_goal ON savings_movements(goal_id);
+  CREATE INDEX IF NOT EXISTS idx_savings_movements_tx ON savings_movements(transaction_id);
+`);
+
 // 1.14.0: a personal category is one household member's spending money —
 // its budget is their allowance, and anything allocated to it is theirs.
 if (!hasColumn('categories', 'personal')) {

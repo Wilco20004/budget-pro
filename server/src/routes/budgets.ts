@@ -3,6 +3,7 @@ import { db } from '../db';
 import { publishSensors } from '../ha';
 import { periodKpis, trend } from '../services/kpis';
 import { listPlans, planBudget } from '../services/paymentPlans';
+import { goalBudget } from '../services/savings';
 import { previousPeriod, resolvePeriod } from '../services/periods';
 import { h, num, round2 } from '../util';
 
@@ -17,6 +18,7 @@ budgetsRouter.get(
     const prev = previousPeriod(period);
     const prevActual = new Map(periodKpis(prev).categories.map((c) => [c.category_id, c.actual]));
     const plans = planBudget(period).byCategory;
+    const goals = goalBudget();
     const rows = db
       .prepare(
         `SELECT c.id AS category_id, c.name, c.kind, c.icon, c.color, c.requires_slip, c.default_budget, c.personal,
@@ -34,6 +36,7 @@ budgetsRouter.get(
         // planned is what the user sets; payment plan instalments are added on top.
         planned: r.override ?? r.default_budget,
         plans: r.kind === 'income' ? 0 : plans.get(r.category_id) ?? 0,
+        goals: r.kind === 'income' ? 0 : goals.get(r.category_id) ?? 0,
         previous_actual: prevActual.get(r.category_id) ?? 0,
       })),
       payment_plans: listPlans(period).filter((p) => p.this_period || p.status === 'active' || p.status === 'upcoming'),

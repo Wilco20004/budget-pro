@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import TrendChart from '../components/TrendChart';
 import { money } from '../format';
-import { CategoryKpi, GroupKpi, PeriodKpis, TrendPoint } from '../types';
+import { CategoryKpi, GroupKpi, PeriodKpis, SavingsOverview, TrendPoint } from '../types';
 
 /** A group's subtotal bar, followed by its categories. */
 function GroupBlock({ g, members, fraction }: { g: GroupKpi; members: CategoryKpi[]; fraction: number }) {
@@ -29,6 +29,7 @@ function GroupBlock({ g, members, fraction }: { g: GroupKpi; members: CategoryKp
     group_name: g.name,
     personal: false,
     plans_planned: members.reduce((a, c) => a + c.plans_planned, 0),
+    goals_planned: 0,
   };
   return (
     <div className="group-block">
@@ -71,7 +72,7 @@ function Bullet({ c, fraction, header = false }: { c: CategoryKpi; fraction: num
       )}
       <div
         className="track"
-        title={`Actual ${money(c.actual)} of ${money(c.planned)} planned${c.plans_planned ? ` (incl. ${money(c.plans_planned)} payment plans)` : ''}${c.planned ? ` — on-pace spend by today is ${money(c.pace_expected)}` : ''}`}
+        title={`Actual ${money(c.actual)} of ${money(c.planned)} planned${c.plans_planned ? ` (incl. ${money(c.plans_planned)} payment plans)` : ''}${c.goals_planned ? ` (incl. ${money(c.goals_planned)} savings goal top-ups)` : ''}${c.planned ? ` — on-pace spend by today is ${money(c.pace_expected)}` : ''}`}
       >
         <div className={`fill ${cls}`} style={{ width: pct(c.actual) }} />
         {c.planned > 0 && <div className="plan-mark" style={{ left: `calc(${pct(c.planned)} - 1px)` }} />}
@@ -93,6 +94,7 @@ export default function Dashboard() {
   const { selected } = usePeriod();
   const [k, setK] = useState<PeriodKpis | null>(null);
   const [trend, setTrend] = useState<TrendPoint[]>([]);
+  const [goalsOverview, setGoalsOverview] = useState<SavingsOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,6 +102,7 @@ export default function Dashboard() {
     setError(null);
     api.kpis(selected.start).then(setK).catch((e) => setError(e.message));
     api.trend(6, selected.start).then(setTrend).catch(() => undefined);
+    api.savings(selected.start).then(setGoalsOverview).catch(() => undefined);
   }, [selected?.start]);
 
   const t = k?.totals;
@@ -195,6 +198,40 @@ export default function Dashboard() {
                       {money(c.actual, { whole: true })} of {money(c.planned, { whole: true })} spent
                     </div>
                   </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {goalsOverview && goalsOverview.goals.length > 0 && (
+            <div className="card">
+              <div className="row" style={{ marginBottom: '0.5rem' }}>
+                <h2 style={{ margin: 0 }}>Savings goals</h2>
+                <span className="spacer" />
+                <span className="small muted">{money(goalsOverview.total, { whole: true })} saved</span>{' '}
+                <Link to="/savings" className="small">
+                  Open
+                </Link>
+              </div>
+              <div className="goals">
+                {goalsOverview.goals.map((g) => (
+                  <div className="goal" key={g.id}>
+                    <div className="row small">
+                      <span>
+                        {g.icon} {g.name}
+                      </span>
+                      <span className="spacer" />
+                      <span>
+                        {money(g.balance, { whole: true })}
+                        {g.target !== null && <span className="muted"> / {money(g.target, { whole: true })}</span>}
+                      </span>
+                    </div>
+                    {g.target !== null && (
+                      <div className="goal-bar" title={`${(g.pct ?? 0).toFixed(0)}% of target`}>
+                        <div className="goal-fill" style={{ width: `${Math.max(0, g.pct ?? 0)}%` }} />
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>

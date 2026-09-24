@@ -6,7 +6,8 @@ import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import ReceiptUpload from '../components/ReceiptUpload';
 import SplitEditor from '../components/SplitEditor';
 import { money, NO_SLIP_LABEL, shortDate, STATUS_ICON, STATUS_LABEL, todayIso } from '../format';
-import { Account, Category, NoSlipReason, PaymentPlan, Transaction } from '../types';
+import { Account, Category, NoSlipReason, PaymentPlan, SavingsGoal, Transaction } from '../types';
+import SavingsAllocate from '../components/SavingsAllocate';
 import ConfirmButton from '../components/ConfirmButton';
 
 const STATUSES = ['all', 'uncategorized', 'needs_slip', 'reconciled', 'ignored'] as const;
@@ -44,13 +45,17 @@ function Detail({
   tx,
   categories,
   plans,
+  goals,
   onChanged,
 }: {
   tx: Transaction;
   categories: Category[];
   plans: PaymentPlan[];
+  goals: SavingsGoal[];
   onChanged: () => void;
 }) {
+  // Savings pots are offered for transfers and savings-category transactions.
+  const savingsLike = tx.splits.some((s) => ['savings', 'transfer'].includes(categories.find((c) => c.id === s.category_id)?.kind ?? ''));
   const linkable = plans.filter((p) => p.id === tx.payment_plan_id || p.status === 'active' || p.status === 'upcoming');
   const [notes, setNotes] = useState(tx.notes ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +91,7 @@ function Detail({
           </>
         )}
       </div>
+      {(savingsLike || goals.some((g) => g.account_id === tx.account_id)) && <SavingsAllocate tx={tx} goals={goals} onSaved={onChanged} />}
       {tx.amount < 0 && (tx.payment_plan_id || linkable.length > 0) && (
         <div className="row">
           <span className="small muted">Payment plan instalment:</span>
@@ -213,10 +219,11 @@ export default function Transactions() {
   const categoryFilter = params.get('category');
   const planFilter = params.get('plan');
   const [q, setQ] = useState('');
-  const [accountId, setAccountId] = useState('');
+  const [accountId, setAccountId] = useState(params.get('account') ?? '');
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [plans, setPlans] = useState<PaymentPlan[]>([]);
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [remember, setRemember] = useState(() => {
@@ -234,6 +241,7 @@ export default function Transactions() {
     api.categories().then(setCategories).catch(() => undefined);
     api.accounts().then(setAccounts).catch(() => undefined);
     api.paymentPlans().then(setPlans).catch(() => undefined);
+    api.savings().then((o) => setGoals(o.goals)).catch(() => undefined);
   }, []);
 
   const load = () => {
@@ -440,7 +448,7 @@ export default function Transactions() {
                   {expanded === t.id && (
                     <tr className="expanded">
                       <td colSpan={5}>
-                        <Detail tx={t} categories={categories} plans={plans} onChanged={load} />
+                        <Detail tx={t} categories={categories} plans={plans} goals={goals} onChanged={load} />
                       </td>
                     </tr>
                   )}

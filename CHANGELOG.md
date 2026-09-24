@@ -1,5 +1,21 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.15.0 — 2026-09-24
+
+- **Savings goals** (new Savings page): target, target date and a planned
+  top-up per period, with progress, amount still needed per period and
+  On track / Behind.
+  - Virtual pots share one account (medical R1,000 + holiday R500 in one
+    savings account). Top up or withdraw by hand, share a transfer over
+    pots from its transaction, or link lines automatically with statement
+    text. The page shows how much of the account isn't in a pot yet.
+  - Physical goals own an account and follow its imported balance.
+  - Planned top-ups are added to the chosen savings category's budget
+    until the target is reached.
+  - The dashboard shows each goal's progress. MCP tools
+    list_savings_goals, add_savings_goal, add_savings_movement and
+    allocate_to_savings_goals.
+
 ## 1.14.0 — 2026-09-24
 
 - **Payment plans** (Plan page): PayJustNow, PayFlex, a medical account —

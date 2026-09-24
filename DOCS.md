@@ -260,6 +260,35 @@ on a slip (the chocolate on the Checkers slip), and it comes off their
 spending money. The dashboard shows what each person has left this period.
 To change one period's amount, edit it on the Plan page.
 
+### Savings goals
+
+On the **Savings** page. A goal has a name, an optional target and target
+date, and a planned top-up per period. There are two kinds:
+
+- **A pot in a shared account (virtual).** One savings account can hold
+  R1,000 for medical and R500 for the December holiday. The pot's balance is
+  what was already saved plus its top-ups and withdrawals. To add those:
+  - **By hand:** *+ Top up* or *− Withdraw* (cash put away, interest, moving
+    money between pots).
+  - **From a transaction:** open a transfer in Transactions → *Share over
+    pots*. Money leaving another account tops a pot up; money leaving the
+    pot's own account is taken from it.
+  - **Automatically:** give the pot **statement text** (e.g.
+    `HOLIDAY POCKET`) and bank lines containing it are added to it.
+
+  When the shared account's statements are imported, the Savings page shows
+  how much of its balance isn't in a pot yet.
+- **Its own account (physical).** The goal's balance is that account's
+  balance, taken from its imported statements. Its top-ups are the
+  account's deposits. Only one goal can own an account; any other goal in
+  it has to be a pot.
+
+Each goal shows its progress, what's left, and how much it needs per period
+to reach the target by its date (*On track* when the planned top-up covers
+that, *Behind* when it doesn't). The planned top-up is added to the budget of
+the savings category you choose, until the target is reached or the goal is
+archived. It shows as "+ savings goal top-ups" on the Plan page.
+
 ## Home Assistant sensors
 
 Updated on every change and every 5 minutes (turn off in Settings):

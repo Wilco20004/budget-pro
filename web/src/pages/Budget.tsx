@@ -34,7 +34,7 @@ export default function Budget() {
   useEffect(() => load(), [selected?.start]);
 
   // What a line plans in total: the amount typed in plus payment plan instalments due this period.
-  const lineTotal = (l: BudgetLine) => (parseFloat(values[l.category_id]) || 0) + l.plans;
+  const lineTotal = (l: BudgetLine) => (parseFloat(values[l.category_id]) || 0) + l.plans + l.goals;
   const total = (kind: string) => lines.filter((l) => l.kind === kind).reduce((a, l) => a + lineTotal(l), 0);
   const income = total('income');
   const out = total('expense') + total('savings');
@@ -128,6 +128,9 @@ export default function Budget() {
                         <span className="icon">{l.icon}</span> {l.name}
                         {l.requires_slip ? <span className="small muted"> · slip required</span> : null}
                         {l.personal ? <span className="small muted"> · spending money</span> : null}
+                        {l.goals > 0 && (
+                          <div className="small muted">+ {money(l.goals, { whole: true })} savings goal top-ups</div>
+                        )}
                         {l.plans > 0 && (
                           <div className="small muted">+ {money(l.plans, { whole: true })} payment plans this period</div>
                         )}

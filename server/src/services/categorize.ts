@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { db } from '../db';
 import { linkPaymentPlans } from './paymentPlans';
+import { linkSavings } from './savings';
 
 export interface MerchantRow {
   id: string;
@@ -54,6 +55,7 @@ export function suggestMerchantPattern(description: string): string {
 export function autoCategorize(transactionIds?: string[]): number {
   // Payment plan instalments first: the plan decides their category.
   linkPaymentPlans(transactionIds);
+  linkSavings(transactionIds);
   const merchants = db.prepare('SELECT * FROM merchants').all() as MerchantRow[];
   const rows = (
     transactionIds

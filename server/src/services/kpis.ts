@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { TX_STATUS_SQL } from './categorize';
 import { planBudget } from './paymentPlans';
+import { goalBudget } from './savings';
 import { parseIso, Period, recentPeriods, todayIso } from './periods';
 
 export interface CategoryKpi {
@@ -27,6 +28,8 @@ export interface CategoryKpi {
   personal: boolean;
   /** Part of planned that comes from payment plan instalments due this period. */
   plans_planned: number;
+  /** Part of planned that comes from savings goals' planned top-ups. */
+  goals_planned: number;
 }
 
 export interface GroupKpi {
@@ -123,6 +126,7 @@ export function periodKpis(period: Period): PeriodKpis {
     personal: number;
   }[];
   const plans = planBudget(period).byCategory;
+  const goals = goalBudget();
 
   const sums = db
     .prepare(
@@ -151,10 +155,11 @@ export function periodKpis(period: Period): PeriodKpis {
     if (c.kind === 'transfer') continue;
     const s = sumMap.get(c.id);
     const fromPlans = c.kind === 'income' ? 0 : plans.get(c.id) ?? 0;
-    if (c.archived && !s && !c.planned && !fromPlans) continue;
+    const fromGoals = c.kind === 'income' ? 0 : goals.get(c.id) ?? 0;
+    if (c.archived && !s && !c.planned && !fromPlans && !fromGoals) continue;
     const signed = s?.total ?? 0;
     const actual = r2(c.kind === 'income' ? signed : -signed);
-    const planned = r2((c.planned || 0) + fromPlans);
+    const planned = r2((c.planned || 0) + fromPlans + fromGoals);
     const pace = r2(planned * fraction);
     const status = spendStatus(planned, actual, pace, fraction, c.kind === 'income');
     categories.push({
@@ -168,6 +173,7 @@ export function periodKpis(period: Period): PeriodKpis {
       group_name: c.kind === 'expense' ? c.group_name : null,
       personal: Boolean(c.personal),
       plans_planned: r2(fromPlans),
+      goals_planned: r2(fromGoals),
       planned,
       actual,
       remaining: r2(planned - actual),
@@ -199,6 +205,7 @@ export function periodKpis(period: Period): PeriodKpis {
       group_name: null,
       personal: false,
       plans_planned: 0,
+      goals_planned: 0,
     });
   }
 

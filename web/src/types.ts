@@ -128,6 +128,8 @@ export interface CategoryKpi {
   personal: boolean;
   /** Part of planned from payment plan instalments due this period. */
   plans_planned: number;
+  /** Part of planned from savings goals' planned top-ups. */
+  goals_planned: number;
 }
 
 export interface PeriodKpis {
@@ -182,10 +184,65 @@ export interface BudgetLine {
   planned: number;
   /** Added on top of planned by payment plan instalments due this period. */
   plans: number;
+  /** Added on top of planned by savings goals' planned top-ups. */
+  goals: number;
   personal: number;
   previous_actual: number;
   group_id: string | null;
   group_name: string | null;
+}
+
+export interface SavingsGoal {
+  id: string;
+  name: string;
+  icon: string | null;
+  target: number | null;
+  target_date: string | null;
+  account_id: string | null;
+  account_name: string | null;
+  tracks_account: number;
+  kind: 'physical' | 'virtual';
+  category_id: string | null;
+  topup: number;
+  match_pattern: string | null;
+  opening_balance: number;
+  archived: number;
+  sort_order: number;
+  balance_source: 'account' | 'movements';
+  balance: number;
+  remaining: number | null;
+  pct: number | null;
+  periods_left: number | null;
+  needed_per_period: number | null;
+  status: 'no_target' | 'reached' | 'saving' | 'on_track' | 'behind';
+  planned_this_period: number;
+  this_period: { added: number; withdrawn: number };
+}
+
+export interface SavingsOverview {
+  period: Period;
+  total: number;
+  goals: SavingsGoal[];
+  accounts: { account_id: string; name: string; balance: number | null; assigned: number; unassigned: number | null }[];
+}
+
+export interface SavingsMovement {
+  id: string;
+  goal_id: string;
+  date: string;
+  amount: number;
+  transaction_id: string | null;
+  transaction_description?: string | null;
+  note: string | null;
+  source: string;
+}
+
+export interface SavingsAllocation {
+  id: string;
+  goal_id: string;
+  goal_name: string;
+  amount: number;
+  source: string;
 }
 
 export type PlanFrequency = 'monthly' | 'fortnightly' | 'weekly';

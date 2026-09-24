@@ -9,6 +9,8 @@ import { fetchMessage, listMessages, withMailbox } from './email/mailbox';
 import { createDataReceipt, storeExtraction } from './receipts/service';
 import { productHistory, queryProducts } from './routes/receipts';
 import { createPlan } from './routes/paymentPlans';
+import { addMovement, createGoal } from './routes/savings';
+import { savingsOverview, setTransactionAllocations } from './services/savings';
 import { queryTransactions, setSingleCategory } from './routes/transactions';
 import { applyPlanCategory, getPlan, listPlans } from './services/paymentPlans';
 import { periodKpis, trend } from './services/kpis';
@@ -328,6 +330,75 @@ function buildServer(): McpServer {
       if (plan) applyPlanCategory(transaction_id, plan.category_id, tx.amount);
       return json({ ok: true });
     }
+  );
+
+  // ---- Savings goals -----------------------------------------------------
+
+  server.registerTool(
+    'list_savings_goals',
+    {
+      title: 'List savings goals',
+      description:
+        'Savings goals with balance, target, target date, progress, planned top-up per period, what is needed per period to reach the ' +
+        'target in time, and this period’s top-ups/withdrawals. physical = the goal has its own account (balance follows it); virtual = a ' +
+        'pot inside a shared account. accounts lists each account’s balance and how much of it isn’t assigned to a goal.',
+      inputSchema: { period: periodArg },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ period }) => json(savingsOverview(resolvePeriod(period)))
+  );
+
+  server.registerTool(
+    'add_savings_goal',
+    {
+      title: 'Add a savings goal',
+      description:
+        'Create a savings goal. tracks_account=true with account_id makes it physical (its balance is that account’s); otherwise it is a ' +
+        'virtual pot (optionally inside account_id) whose balance is opening_balance plus its movements. topup is the planned amount per ' +
+        'period, added to category_id’s budget. Only when the user asks.',
+      inputSchema: {
+        name: z.string(),
+        target: z.number().positive().optional(),
+        target_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        account_id: z.string().optional(),
+        tracks_account: z.boolean().optional(),
+        category_id: z.string().optional(),
+        topup: z.number().min(0).optional(),
+        opening_balance: z.number().optional(),
+        match_pattern: z.string().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async (a) => json(createGoal(a))
+  );
+
+  server.registerTool(
+    'add_savings_movement',
+    {
+      title: 'Top up or withdraw from a savings goal',
+      description: 'Record a manual top-up (positive amount) or withdrawal (negative) on a virtual savings goal. Only when the user asks.',
+      inputSchema: {
+        goal_id: z.string(),
+        amount: z.number(),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        note: z.string().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async ({ goal_id, ...rest }) => json(addMovement(goal_id, rest))
+  );
+
+  server.registerTool(
+    'allocate_to_savings_goals',
+    {
+      title: 'Share a transaction over savings goals',
+      description:
+        'Replace how one transaction (e.g. a transfer into savings) is shared out over virtual savings goals. Amounts are positive; money ' +
+        'leaving another account tops the goal up, money leaving the goal’s own account is a withdrawal. Empty list clears it.',
+      inputSchema: { transaction_id: z.string(), allocations: z.array(z.object({ goal_id: z.string(), amount: z.number().positive() })) },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async ({ transaction_id, allocations }) => json(setTransactionAllocations(transaction_id, allocations))
   );
 
   // ---- Receipts mailbox (read-only) --------------------------------------

@@ -728,3 +728,26 @@ pre {
   padding-top: 0.75rem;
   border-top: 1px solid var(--line);
 }
+
+/* Savings goals */
+.goals {
+  display: grid;
+  gap: 0.9rem;
+}
+.goal {
+  display: grid;
+  gap: 4px;
+}
+.goal-bar {
+  position: relative;
+  height: 10px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.goal-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--series-1);
+  border-radius: 4px;
+}

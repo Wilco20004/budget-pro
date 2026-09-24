@@ -3,6 +3,10 @@ import {
   BudgetLine,
   Category,
   PaymentPlan,
+  SavingsAllocation,
+  SavingsGoal,
+  SavingsMovement,
+  SavingsOverview,
   CategoryGroup,
   EmailStatus,
   ImportRecord,
@@ -134,6 +138,18 @@ export const api = {
   createPaymentPlan: (p: Partial<PaymentPlan>) => request<PaymentPlan>('api/payment-plans', json('POST', p)),
   updatePaymentPlan: (id: string, p: Partial<PaymentPlan>) => request<PaymentPlan>(`api/payment-plans/${id}`, json('PUT', p)),
   deletePaymentPlan: (id: string) => request<void>(`api/payment-plans/${id}`, json('DELETE')),
+
+  savings: (period?: string, all = false) => request<SavingsOverview>(`api/savings${qs({ period, all: all ? 1 : undefined })}`),
+  createGoal: (g: Partial<SavingsGoal>) => request<SavingsGoal>('api/savings/goals', json('POST', g)),
+  updateGoal: (id: string, g: Partial<SavingsGoal>) => request<SavingsGoal>(`api/savings/goals/${id}`, json('PUT', g)),
+  deleteGoal: (id: string) => request<void>(`api/savings/goals/${id}`, json('DELETE')),
+  goalMovements: (id: string) => request<SavingsMovement[]>(`api/savings/goals/${id}/movements`),
+  addMovement: (id: string, m: { amount: number; date?: string; note?: string | null }) =>
+    request<SavingsGoal>(`api/savings/goals/${id}/movements`, json('POST', m)),
+  deleteMovement: (id: string) => request<void>(`api/savings/movements/${id}`, json('DELETE')),
+  allocations: (txId: string) => request<SavingsAllocation[]>(`api/savings/allocations/${txId}`),
+  setAllocations: (txId: string, allocations: { goal_id: string; amount: number }[]) =>
+    request<SavingsAllocation[]>(`api/savings/allocations/${txId}`, json('PUT', { allocations })),
   saveBudget: (period: string, lines: { category_id: string; amount: number }[], setDefault = false) =>
     request<{ ok: true }>(`api/budgets/${period}`, json('PUT', { lines, set_default: setDefault })),
   copyPreviousBudget: (period: string) => request<{ copied: number }>(`api/budgets/${period}/copy-previous`, json('POST')),
