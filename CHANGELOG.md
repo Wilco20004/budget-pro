@@ -1,5 +1,16 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.10.0 — 2026-09-24
+
+- **Checkers Sixty60 invoice emails** are read exactly: every product with
+  quantity (weighed items too), deals such as "Buy 2 For R75" shared across
+  the products they cover, delivery fees, and the Sixty60 wallet — the
+  card charge on the invoice is what's matched to the bank, and a wallet
+  payment or credit is its own line, so the split always equals what the
+  bank took.
+- Fix: images embedded in a forwarded email (letterheads, logos) were
+  imported as slips. Only attached photos are now.
+
 ## 1.9.0 — 2026-09-24
 
 - **Email inbox**: BudgetPro checks a receipts mailbox over IMAP every 5

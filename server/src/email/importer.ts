@@ -9,6 +9,7 @@ import { ExtractedReceipt, parseReceiptText } from '../receipts/parseText';
 import { createDataReceipt, processReceipt, saveReceiptFile, storeExtraction } from '../receipts/service';
 import { getEmailConfig } from '../settings';
 import { htmlToLines } from './htmlText';
+import { parseSixty60 } from './sixty60';
 import { fetchMessage, listMessages, MessageSummary, summaryFor, withMailbox } from './mailbox';
 
 // Receipts mailbox → BudgetPro. Every few minutes new messages are read:
@@ -52,7 +53,7 @@ function setState(patch: Partial<EmailState>) {
 /** A receipt in the email body, from a known shop's layout. Return null when
  *  the email isn't that shop's. Add a parser here per shop. */
 type BodyParser = { name: string; parse: (mail: ParsedMail) => ExtractedReceipt | null };
-const BODY_PARSERS: BodyParser[] = [];
+const BODY_PARSERS: BodyParser[] = [{ name: 'sixty60', parse: parseSixty60 }];
 
 const LOOKS_LIKE_RECEIPT = /receipt|invoice|order|slip|purchase|delivered|sixty60|checkers|woolworths|pick n pay|dis-?chem|clicks/i;
 
@@ -77,6 +78,10 @@ function bodyReceipt(mail: ParsedMail): { data: ExtractedReceipt; parser: string
   // The first line of an email is a heading ("Your order…"); the sender names the shop.
   data.merchant = mail.from?.value?.[0]?.name || data.merchant;
   return { data, parser: 'generic' };
+}
+
+function embedded(mail: ParsedMail, cid: string | undefined): boolean {
+  return Boolean(cid && typeof mail.html === 'string' && mail.html.includes(`cid:${cid}`));
 }
 
 const STATEMENT_EXT = ['.csv', '.ofx', '.qfx'];
@@ -116,8 +121,9 @@ export async function handleMail(mail: ParsedMail): Promise<{ status: EmailStatu
           notes.push(`${name}: slip added`);
           slips++;
         }
-      } else if (IMAGE.test(a.contentType) && (a.contentDisposition === 'attachment' || a.size > 100_000)) {
-        // Small inline images are logos and signatures, not slips.
+      } else if (IMAGE.test(a.contentType) && a.contentDisposition !== 'inline' && !a.related && !embedded(mail, a.cid)) {
+        // Images shown inside the email's HTML (logos, signatures, a
+        // forwarded letterhead) aren't slips; attached photos are.
         const id = saveReceiptFile(a.content, name, a.contentType.toLowerCase().replace('image/jpg', 'image/jpeg'));
         await processReceipt(id);
         receiptId ??= id;
