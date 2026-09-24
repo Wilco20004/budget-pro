@@ -1,5 +1,20 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.9.0 — 2026-09-24
+
+- **Email inbox**: BudgetPro checks a receipts mailbox over IMAP every 5
+  minutes (set `imap_host`, `imap_user`, `imap_password` in the add-on's
+  Configuration). Statement attachments are imported, slip photos and PDF
+  e-slips are read, and order/receipt emails without an attachment (e.g.
+  Checkers Sixty60) are read from the email itself and matched to the bank
+  transaction. Read-only: nothing in the mailbox is changed. Import → Email
+  inbox shows each email and what became of it, with *Check email now*.
+- MCP tools `list_emails`, `read_email` and `reprocess_email`, so an AI
+  client can look at the emails that arrive and help add a parser for a
+  shop's order-email layout.
+- Backups include the email log, so a restored install doesn't import the
+  same emails twice.
+
 ## 1.8.0 — 2026-09-24
 
 - **Better reading of e-slip screenshots** (e.g. Checkers/Shoprite app

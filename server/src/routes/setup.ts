@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
 import { homeAssistantAvailable, publishSensors } from '../ha';
+import { emailStatus } from '../email/importer';
 import { inboxStatus } from '../inbox';
 import { claudeAvailable } from '../receipts/engines';
 import { autoCategorize, suggestMerchantPattern } from '../services/categorize';
@@ -25,6 +26,7 @@ settingsRouter.get(
       claude_available: claudeAvailable(),
       ai_model: getAiModel(),
       inbox: inboxStatus(),
+      email: emailStatus(),
       // How Home Assistant itself reaches this add-on (for the notification
       // automation): add-on containers are addressable by their hostname on
       // the Supervisor network. Unknown when running outside HA.

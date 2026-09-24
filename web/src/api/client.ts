@@ -3,6 +3,7 @@ import {
   BudgetLine,
   Category,
   CategoryGroup,
+  EmailStatus,
   ImportRecord,
   ImportResult,
   Keyword,
@@ -176,6 +177,9 @@ export const api = {
     return request<ImportResult>('api/imports', { method: 'POST', body: fd });
   },
   deleteImport: (id: string) => request<void>(`api/imports/${id}`, json('DELETE')),
+  email: () => request<EmailStatus>('api/email'),
+  checkEmail: () => request<EmailStatus & { processed: number }>('api/email/check', json('POST')),
+  reprocessEmail: (uid: number) => request<{ status: string; detail: string }>(`api/email/${uid}/reprocess`, json('POST')),
   scanInbox: () => request<{ processed: number; failed: number }>('api/imports/inbox/scan', json('POST')),
   notifications: () => request<NotificationLog[]>('api/notifications'),
   restoreBackup: (file: File) => {

@@ -68,6 +68,26 @@ with a `.error.txt` explaining why. Reach the folder with the Samba share
 add-on, a phone folder-sync app, or an automation that saves statement
 e-mail attachments there.
 
+**Email inbox** — forward online-order confirmations (e.g. Checkers
+Sixty60), slip photos, PDF e-slips and statements to a mailbox used only for
+this, and BudgetPro imports them every 5 minutes. In the add-on's
+**Configuration** tab set `imap_host`, `imap_user` and `imap_password`
+(`imap_port` 993 and `imap_folder` INBOX by default). If the connection
+fails with a certificate error, use your mail host's server name (the one
+its certificate is issued to) as `imap_host`. A filter in your normal
+mailbox can auto-forward the shop's emails. What happens per email:
+
+- statement attachments (Discovery PDF, CSV, OFX) are imported;
+- slip photos and PDF e-slips are read like uploaded slips;
+- otherwise the email itself is read as a receipt when it looks like one
+  (an order/receipt email with product lines and a total), and matched to
+  the bank transaction;
+- anything else (newsletters) is skipped.
+
+BudgetPro only reads the mailbox — it never deletes, moves, marks or sends
+anything — and handles each email once. The first check looks back 60
+days. Import → Email inbox shows what arrived and what became of it.
+
 **Phone notifications (Android, Discovery Bank)** — for day-to-day figures
 between statements. The Home Assistant Companion app's *Last notification*
 sensor passes each banking notification to BudgetPro (Import → Phone
@@ -210,7 +230,9 @@ claude mcp add --transport http budgetpro http://<ha-ip>:8097/mcp --header "Auth
 MCP tools: `get_settings`, `list_periods`, `get_period_summary`,
 `get_trend`, `list_categories`, `search_transactions`,
 `spending_by_merchant`, `search_products`, `product_price_history`,
-`categorize_transaction`, `log_receipt`.
+`categorize_transaction`, `log_receipt`, and for the receipts mailbox
+`list_emails`, `read_email` (text, and HTML for writing a shop's parser)
+and `reprocess_email`.
 
 Main REST endpoints: `GET /api/kpis?period=YYYY-MM-DD`,
 `GET /api/kpis/trend?count=6`, `GET /api/transactions?period=&status=&category_id=&q=`,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { usePeriod } from '../components/PeriodContext';
+import EmailInbox from '../components/EmailInbox';
 import PhoneNotifications from '../components/PhoneNotifications';
 import { shortDate } from '../format';
 import { Account, ImportRecord, ImportResult, Settings } from '../types';
@@ -139,6 +140,8 @@ export default function Import() {
         )}
       </div>
 
+      <EmailInbox key={settings ? 'loaded' : 'loading'} initial={settings?.email ?? null} />
+
       <PhoneNotifications settings={settings} />
 
       <div className="card">
@@ -164,7 +167,7 @@ export default function Import() {
                   <tr key={h.id}>
                     <td className="small">{new Date(h.created_at).toLocaleString()}</td>
                     <td className="small">
-                      {h.filename} {h.source === 'inbox' && <span className="chip">inbox</span>}
+                      {h.filename} {(h.source === 'inbox' || h.source === 'email') && <span className="chip">{h.source}</span>}
                     </td>
                     <td className="small">{h.account_name}</td>
                     <td className="small">{h.first_date ? `${shortDate(h.first_date)} – ${shortDate(h.last_date)}` : '—'}</td>

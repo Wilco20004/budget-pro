@@ -27,6 +27,7 @@ const TABLES = [
   'receipts',
   'products',
   'receipt_items',
+  'emails',
   'category_keywords',
   'notifications',
 ];

@@ -4,9 +4,11 @@ import fs from 'fs';
 import './db';
 import { requireAuth } from './auth';
 import { publishSensors } from './ha';
+import { startEmailWatcher } from './email/importer';
 import { startInboxWatcher } from './inbox';
 import { mcpRouter } from './mcp';
 import { backupRouter } from './routes/backup';
+import { emailRouter } from './routes/email';
 import { budgetsRouter, kpisRouter } from './routes/budgets';
 import { importsRouter } from './routes/imports';
 import { notificationsRouter } from './routes/notifications';
@@ -48,6 +50,7 @@ app.use('/api/receipts', receiptsRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/backup', backupRouter);
+app.use('/api/email', emailRouter);
 app.use('/mcp', mcpRouter);
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
@@ -64,6 +67,7 @@ if (fs.existsSync(webDist)) {
 app.listen(PORT, () => {
   console.log(`BudgetPro server listening on port ${PORT}`);
   startInboxWatcher();
+  startEmailWatcher();
   publishSensors().catch(() => undefined);
   setInterval(() => publishSensors().catch(() => undefined), 5 * 60_000);
 });

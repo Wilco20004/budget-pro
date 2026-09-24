@@ -1,5 +1,5 @@
 name: BudgetPro
-version: "1.8.0"
+version: "1.9.0"
 slug: budgetpro
 description: Payday-to-payday household budget — statement import, slip OCR, planned vs actual KPIs, and an MCP/API for AI analysis
 url: https://github.com/Wilco20004/budget-pro
@@ -26,7 +26,17 @@ options:
   anthropic_api_key: ""
   ai_model: "claude-opus-5"
   inbox_dir: "/share/budgetpro/inbox"
+  imap_host: ""
+  imap_port: 993
+  imap_user: ""
+  imap_password: ""
+  imap_folder: "INBOX"
 schema:
   anthropic_api_key: password?
   ai_model: str?
   inbox_dir: str?
+  imap_host: str?
+  imap_port: port?
+  imap_user: str?
+  imap_password: password?
+  imap_folder: str?

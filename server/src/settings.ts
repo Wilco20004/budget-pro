@@ -14,6 +14,37 @@ interface AddonOptions {
   anthropic_api_key?: string;
   ai_model?: string;
   inbox_dir?: string;
+  imap_host?: string;
+  imap_port?: number;
+  imap_user?: string;
+  imap_password?: string;
+  imap_folder?: string;
+}
+
+export interface EmailConfig {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  folder: string;
+}
+
+/** The receipts mailbox (a dedicated account, e.g. a Gmail with an app
+ *  password). Set in the add-on's Configuration tab, or IMAP_* env vars when
+ *  running outside Home Assistant. The password never leaves the server. */
+export function getEmailConfig(): EmailConfig | null {
+  const o = readOptions();
+  const host = o.imap_host || process.env.IMAP_HOST;
+  const user = o.imap_user || process.env.IMAP_USER;
+  const password = o.imap_password || process.env.IMAP_PASSWORD;
+  if (!host || !user || !password) return null;
+  return {
+    host,
+    port: Number(o.imap_port || process.env.IMAP_PORT) || 993,
+    user,
+    password,
+    folder: o.imap_folder || process.env.IMAP_FOLDER || 'INBOX',
+  };
 }
 
 export function readOptions(): AddonOptions {

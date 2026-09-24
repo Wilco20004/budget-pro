@@ -211,6 +211,26 @@ if (!hasColumn('transactions', 'provisional')) {
 // one category, so there's nothing to split). NULL = a slip is expected.
 if (!hasColumn('transactions', 'no_slip_reason')) db.exec('ALTER TABLE transactions ADD COLUMN no_slip_reason TEXT');
 
+// 1.9.0: every email seen in the receipts mailbox and what became of it,
+// so each is processed once (message_id also catches a double forward).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS emails (
+    id TEXT PRIMARY KEY,
+    uid INTEGER NOT NULL,
+    uid_validity TEXT,
+    message_id TEXT UNIQUE,
+    received_at TEXT,
+    from_addr TEXT,
+    subject TEXT,
+    status TEXT NOT NULL,
+    detail TEXT,
+    receipt_id TEXT REFERENCES receipts(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_emails_uid ON emails(uid_validity, uid);
+`);
+
 // 1.5.0: display groups ("Fixed", "Living", "Lifestyle") — a layer over
 // expense categories for dashboard/plan subtotals only. Budgets, splits and
 // reconciling stay per category.

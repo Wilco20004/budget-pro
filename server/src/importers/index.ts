@@ -166,7 +166,7 @@ export async function importStatement(
   accountId: string | null,
   filename: string,
   buf: Buffer,
-  source: 'upload' | 'inbox' | 'api' = 'upload'
+  source: 'upload' | 'inbox' | 'api' | 'email' = 'upload'
 ): Promise<ImportResult> {
   const parsed = await parseStatement(filename, buf);
   if (parsed.rows.length === 0) {

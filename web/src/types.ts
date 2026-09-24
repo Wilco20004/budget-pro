@@ -81,7 +81,7 @@ export interface Split {
 
 export type NoSlipReason = 'lost' | 'single_category';
 
-export type TxStatus ='uncategorized' | 'needs_slip' | 'reconciled' | 'ignored';
+export type TxStatus = 'uncategorized' | 'needs_slip' | 'reconciled' | 'ignored';
 
 export interface Transaction {
   id: string;
@@ -282,6 +282,26 @@ export interface Settings {
   ai_model: string;
   inbox: { dir: string; exists: boolean; recent: { at: string; file: string; ok: boolean; message: string }[] };
   internal_url: string | null;
+  email: EmailStatus;
+}
+
+export interface EmailLog {
+  uid: number;
+  received_at: string | null;
+  from_addr: string | null;
+  subject: string | null;
+  status: 'receipt' | 'statement' | 'ignored' | 'failed';
+  detail: string | null;
+  receipt_id: string | null;
+}
+
+export interface EmailStatus {
+  configured: boolean;
+  user: string | null;
+  folder: string | null;
+  last_check: string | null;
+  last_error: string | null;
+  recent: EmailLog[];
 }
 
 export interface NotificationLog {
