@@ -1,5 +1,13 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.12.1 — 2026-09-24
+
+- Fix: Delete, Undo import, Regenerate token and Restore did nothing in
+  the Home Assistant companion app, whose view silently refuses the
+  browser's "Are you sure?" pop-up. They now ask on the page itself.
+- The app page is no longer cached by the browser, so an add-on update
+  shows the new version straight away instead of an old copy.
+
 ## 1.12.0 — 2026-09-24
 
 - Slip keywords: the built-in **BABY → Kids** keyword also caught Baby

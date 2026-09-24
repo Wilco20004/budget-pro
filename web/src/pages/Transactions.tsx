@@ -7,6 +7,7 @@ import ReceiptUpload from '../components/ReceiptUpload';
 import SplitEditor from '../components/SplitEditor';
 import { money, NO_SLIP_LABEL, shortDate, STATUS_ICON, STATUS_LABEL, todayIso } from '../format';
 import { Account, Category, NoSlipReason, Transaction } from '../types';
+import ConfirmButton from '../components/ConfirmButton';
 
 const STATUSES = ['all', 'uncategorized', 'needs_slip', 'reconciled', 'ignored'] as const;
 const REMEMBER_KEY = 'budgetpro.remember';
@@ -93,14 +94,14 @@ function Detail({
         <button onClick={() => run(api.patchTransaction(tx.id, { ignored: !tx.ignored }))}>
           {tx.ignored ? 'Stop ignoring' : 'Ignore (don’t count)'}
         </button>
-        <button
+        <ConfirmButton
           className="danger"
-          onClick={() => {
-            if (confirm('Delete this transaction? Re-importing the statement would bring it back.')) run(api.deleteTransaction(tx.id));
-          }}
+          question="Delete it? Re-importing the statement would bring it back."
+          yes="Delete"
+          onConfirm={() => run(api.deleteTransaction(tx.id))}
         >
           Delete
-        </button>
+        </ConfirmButton>
       </div>
       <div className="small muted">
         {tx.account_name}

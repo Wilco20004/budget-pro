@@ -4,6 +4,7 @@ import Copyable from '../components/Copyable';
 import { usePeriod } from '../components/PeriodContext';
 import { setCurrency } from '../format';
 import { Settings } from '../types';
+import ConfirmButton from '../components/ConfirmButton';
 
 function BackupCard({ onRestored }: { onRestored: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -11,16 +12,16 @@ function BackupCard({ onRestored }: { onRestored: () => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Chosen file waiting for the inline "replace everything?" answer.
+  const [pending, setPending] = useState<File | null>(null);
+  const cancel = () => {
+    setPending(null);
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
   async function restore(file: File | undefined) {
     if (!file) return;
-    if (
-      !confirm(
-        `Replace EVERYTHING in this BudgetPro with the contents of ${file.name}?\n\nAccounts, transactions, budgets, rules, slips and products here are overwritten. This install's API token is kept.`
-      )
-    ) {
-      if (fileRef.current) fileRef.current.value = '';
-      return;
-    }
+    setPending(null);
     setBusy(true);
     setError(null);
     setMsg(null);
@@ -51,11 +52,23 @@ function BackupCard({ onRestored }: { onRestored: () => void }) {
         <button onClick={() => downloadBackup().catch((e) => setError(e.message))} disabled={busy}>
           ⬇ Download backup
         </button>
-        <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => restore(e.target.files?.[0])} />
+        <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => setPending(e.target.files?.[0] ?? null)} />
         <button className="danger" onClick={() => fileRef.current?.click()} disabled={busy}>
           {busy ? 'Restoring…' : '⬆ Restore from backup…'}
         </button>
       </div>
+      {pending && (
+        <div className="notice" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
+          Replace <strong>everything</strong> in this BudgetPro with the contents of <strong>{pending.name}</strong>? Accounts,
+          transactions, budgets, rules, slips and products here are overwritten. This install’s API token is kept.
+          <div className="row" style={{ marginTop: '0.5rem' }}>
+            <button className="danger" onClick={() => restore(pending)}>
+              Yes, replace everything
+            </button>
+            <button onClick={cancel}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -185,15 +198,14 @@ export default function SettingsPage() {
         <div className="row" style={{ marginBottom: '0.75rem' }}>
           <code className="token">{s.api_token}</code>
           <Copyable text={s.api_token} />
-          <button
+          <ConfirmButton
             className="small danger"
-            onClick={() =>
-              confirm('Make a new token? Anything using the old one stops working.') &&
-              api.regenerateToken().then((r) => setS({ ...s, api_token: r.api_token }))
-            }
+            question="Make a new token? Anything using the old one stops working."
+            yes="Regenerate"
+            onConfirm={() => api.regenerateToken().then((r) => setS({ ...s, api_token: r.api_token }))}
           >
             Regenerate
-          </button>
+          </ConfirmButton>
         </div>
         <h3 className="small">Claude Code</h3>
         <pre>{claudeCode}</pre>

@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import CategorySelect from '../components/CategorySelect';
 import { money, shortDate } from '../format';
 import { Account, Category, CategoryGroup, Keyword, Merchant } from '../types';
+import ConfirmButton from '../components/ConfirmButton';
 
 type Tab = 'accounts' | 'categories' | 'groups' | 'merchants' | 'keywords';
 const TABS: [Tab, string][] = [
@@ -120,15 +121,14 @@ function Accounts({ onError }: { onError: (m: string) => void }) {
                   >
                     Edit
                   </button>
-                  <button
+                  <ConfirmButton
                     className="link danger"
-                    onClick={() =>
-                      confirm(`Delete ${a.name} and all ${a.transaction_count} of its transactions?`) &&
-                      api.deleteAccount(a.id).then(load).catch((e) => onError(e.message))
-                    }
+                    question={`Delete ${a.name} and all ${a.transaction_count} of its transactions?`}
+                    yes="Delete"
+                    onConfirm={() => api.deleteAccount(a.id).then(load).catch((e) => onError(e.message))}
                   >
                     Delete
-                  </button>
+                  </ConfirmButton>
                 </td>
               </tr>
             ))}
@@ -221,15 +221,14 @@ function Groups({ onError }: { onError: (m: string) => void }) {
                     .join(', ') || 'No categories yet'}
                 </td>
                 <td>
-                  <button
+                  <ConfirmButton
                     className="link danger small"
-                    onClick={() =>
-                      confirm(`Delete the group “${g.name}”? Its categories just become ungrouped.`) &&
-                      api.deleteGroup(g.id).then(load).catch((e) => onError(e.message))
-                    }
+                    question={`Delete “${g.name}”? Its categories become ungrouped.`}
+                    yes="Delete"
+                    onConfirm={() => api.deleteGroup(g.id).then(load).catch((e) => onError(e.message))}
                   >
                     Delete
-                  </button>
+                  </ConfirmButton>
                 </td>
               </tr>
             ))}
@@ -346,12 +345,14 @@ function Categories({ onError }: { onError: (m: string) => void }) {
                     <input type="checkbox" checked={Boolean(c.archived)} onChange={(e) => patch(c, { archived: e.target.checked ? 1 : 0 })} />
                   </td>
                   <td>
-                    <button
+                    <ConfirmButton
                       className="link danger small"
-                      onClick={() => confirm(`Delete ${c.name}?`) && api.deleteCategory(c.id).then(load).catch((e) => onError(e.message))}
+                      question={`Delete ${c.name}?`}
+                      yes="Delete"
+                      onConfirm={() => api.deleteCategory(c.id).then(load).catch((e) => onError(e.message))}
                     >
                       Delete
-                    </button>
+                    </ConfirmButton>
                   </td>
                 </tr>
               ))}

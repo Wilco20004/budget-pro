@@ -6,6 +6,7 @@ import EmailInbox from '../components/EmailInbox';
 import PhoneNotifications from '../components/PhoneNotifications';
 import { shortDate } from '../format';
 import { Account, ImportRecord, ImportResult, Settings } from '../types';
+import ConfirmButton from '../components/ConfirmButton';
 
 export default function Import() {
   const { reload } = usePeriod();
@@ -175,16 +176,14 @@ export default function Import() {
                     <td className="num">{h.duplicate_count}</td>
                     <td>
                       {h.new_count > 0 && (
-                        <button
+                        <ConfirmButton
                           className="link danger small"
-                          onClick={() => {
-                            if (confirm(`Undo this import? Its ${h.new_count} transactions (and their categories) are removed.`)) {
-                              api.deleteImport(h.id).then(load).catch((e) => setError(e.message));
-                            }
-                          }}
+                          question={`Remove its ${h.new_count} transactions (and their categories)?`}
+                          yes="Undo import"
+                          onConfirm={() => api.deleteImport(h.id).then(load).catch((e) => setError(e.message))}
                         >
                           Undo
-                        </button>
+                        </ConfirmButton>
                       )}
                     </td>
                   </tr>

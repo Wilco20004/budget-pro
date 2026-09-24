@@ -57,9 +57,18 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 const webDist = path.join(__dirname, '..', '..', 'web', 'dist');
 if (fs.existsSync(webDist)) {
-  app.use(express.static(webDist));
+  // index.html must never be cached — after an add-on update it names the
+  // new hashed bundle; the hashed assets themselves can be cached for good.
+  app.use(
+    express.static(webDist, {
+      setHeaders: (res, file) => {
+        res.setHeader('Cache-Control', file.endsWith('.html') ? 'no-cache' : 'public, max-age=31536000, immutable');
+      },
+    })
+  );
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/mcp')) return next();
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(webDist, 'index.html'));
   });
 }

@@ -4,6 +4,7 @@ import { api, fetchReceiptFileUrl } from '../api/client';
 import CategorySelect from '../components/CategorySelect';
 import { money, shortDate, tempKey } from '../format';
 import { Category, ReceiptDetail as Receipt } from '../types';
+import ConfirmButton from '../components/ConfirmButton';
 
 interface Line {
   key: string;
@@ -141,12 +142,14 @@ export default function ReceiptDetail() {
           <button onClick={() => act(api.rescanReceipt(r.id), 'Re-read the slip.')} disabled={busy || reading}>
             Re-scan
           </button>
-          <button
+          <ConfirmButton
             className="danger"
-            onClick={() => confirm('Delete this slip?') && api.deleteReceipt(r.id).then(() => navigate('/receipts'))}
+            question="Delete this slip?"
+            yes="Delete"
+            onConfirm={() => api.deleteReceipt(r.id).then(() => navigate('/receipts'))}
           >
             Delete
-          </button>
+          </ConfirmButton>
         </div>
       </div>
       {error && <div className="error">{error}</div>}
