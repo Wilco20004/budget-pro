@@ -34,6 +34,14 @@ the dashboard, in Home Assistant sensors, and available to AI through MCP.
   account; sections for accounts you haven't set up are skipped with a
   note. Every row is checked against the running balance.
 - FNB: Online Banking → the account → Transaction History → Download → CSV.
+- FNB: the emailed **PDF statements**. Cheque accounts, credit cards and
+  personal loans are all supported, and each is checked against its opening
+  and closing balance. The account is recognised from the account number
+  on the statement (set it as the account's match hint).
+  - Give a personal loan the account type **Loan**. Its lines (interest,
+    insurance, the repayment arriving) then count as transfers, because the
+    repayment is already counted as spending on the account it was paid
+    from.
 - Any bank: CSV or OFX.
 
 Mixing export types is safe. The same transaction appears with different
@@ -77,7 +85,7 @@ fails with a certificate error, use your mail host's server name (the one
 its certificate is issued to) as `imap_host`. A filter in your normal
 mailbox can auto-forward the shop's emails. What happens per email:
 
-- statement attachments (Discovery PDF, CSV, OFX) are imported;
+- statement attachments (Discovery or FNB PDF, CSV, OFX) are imported;
 - slip photos and PDF e-slips are read like uploaded slips;
 - otherwise the email itself is read as a receipt when it looks like one
   (an order/receipt email with product lines and a total), and matched to

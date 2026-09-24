@@ -59,6 +59,7 @@ function Accounts({ onError }: { onError: (m: string) => void }) {
               <option value="credit">Credit card</option>
               <option value="savings">Savings</option>
               <option value="cash">Cash</option>
+              <option value="loan">Loan (lines count as transfers)</option>
             </select>
           </label>
           <label className="field">

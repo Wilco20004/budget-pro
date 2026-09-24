@@ -533,3 +533,12 @@ applySeed('discovery_1', [
   ['Medical aid', 'KEYHEALTH|DISCOVERY HEALTH|MOMENTUM HEALTH|BONITAS|MEDSHIELD|FEDHEALTH', 'Insurance'],
   ['Life cover', 'DISCLIFE|OLD MUTUAL|SANLAM|LIBERTY LIFE', 'Insurance'],
 ]);
+
+// 1.17.0: FNB statement lines that mean the same thing for every FNB
+// customer. (Transfers named by the customer — "Transfer To CC" — can't be
+// seeded; they're taught from the transaction.)
+applySeed('fnb_1', [
+  ['FNB credit card repayment', 'DEBICHECK INTERNAL D/O FNBCC|PAYMENT THANK YOU', 'Transfers'],
+  ['FNB personal loan', 'FNB PLOAN', 'Debt repayments'],
+  ['FNB interest charged', 'INT ON DEBIT BALANCE|ADJUST OF DR INTEREST', 'Bank fees'],
+]);

@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.17.0 — 2026-09-24
+
+- **FNB PDF statements**, as emailed, for cheque accounts, credit cards
+  and personal loans, from upload, the inbox folder or the receipts
+  mailbox. They were imported as slips before. Each statement is checked
+  against its opening and closing balance, and cheque lines take their
+  in/out direction from the running balance.
+- New account type **Loan**: its lines count as transfers, so a repayment
+  isn't counted twice.
+- Merchant rules for FNB card repayments (transfers), personal loan debit
+  orders (debt repayments) and debit-balance interest (bank fees).
+
 ## 1.16.0 — 2026-09-24
 
 - **Subcategories**, one level deep (Groceries → Meat, Starch, Fruit &

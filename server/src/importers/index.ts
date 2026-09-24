@@ -162,6 +162,28 @@ function importSection(account: AccountRow, rows: ParsedRow[], importId: string,
   return { newIds, exact, overlap };
 }
 
+/** Puts new lines on loan accounts in the transfer category. */
+function markLoanLinesAsTransfers(ids: string[]): number {
+  const transfer = db.prepare("SELECT id FROM categories WHERE kind = 'transfer' AND archived = 0 ORDER BY sort_order LIMIT 1").get() as
+    | { id: string }
+    | undefined;
+  if (!transfer) return 0;
+  const tx = db.prepare(
+    "SELECT t.id, t.amount FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE t.id = ? AND a.type = 'loan'"
+  );
+  const ins = db.prepare("INSERT INTO transaction_splits (id, transaction_id, category_id, amount, source) VALUES (?, ?, ?, ?, 'rule')");
+  let n = 0;
+  db.transaction(() => {
+    for (const id of ids) {
+      const t = tx.get(id) as { id: string; amount: number } | undefined;
+      if (!t) continue;
+      ins.run(uuid(), t.id, transfer.id, t.amount);
+      n++;
+    }
+  })();
+  return n;
+}
+
 export async function importStatement(
   accountId: string | null,
   filename: string,
@@ -242,6 +264,11 @@ export async function importStatement(
       perAccount.push({ name: s.account.name, new_count: r.newIds.length, duplicate_count: r.exact + r.overlap });
     }
   })();
+
+  // A loan account's lines are the loan's own bookkeeping — interest,
+  // insurance, the repayment arriving. The repayment is spending on the
+  // account that paid it, so counting these too would count it twice.
+  markLoanLinesAsTransfers(newIds);
 
   // Statement lines take over the provisional ones made from phone
   // notifications (keeping their categories/slips) before rules run.

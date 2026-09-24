@@ -235,7 +235,9 @@ export async function parseStatement(filename: string, buf: Buffer): Promise<Par
     if (isDiscoveryStatement(text)) return parseDiscoveryStatement(text, filename);
     const { isDiscoveryHistory, parseDiscoveryHistory } = await import('./discoveryHistory.js');
     if (isDiscoveryHistory(text)) return parseDiscoveryHistory(buf);
-    throw new Error('Only Discovery Bank PDF statements and transaction histories can be read so far — for other banks, download the CSV instead.');
+    const { fnbKind, parseFnbStatement } = await import('./fnbPdf.js');
+    if (fnbKind(text)) return parseFnbStatement(text);
+    throw new Error('Only Discovery Bank and FNB PDF statements can be read so far — for other banks, download the CSV instead.');
   }
   const text = buf.toString('utf-8');
   if (lower.endsWith('.ofx') || lower.endsWith('.qfx') || /<OFX>/i.test(text.slice(0, 2000))) {
