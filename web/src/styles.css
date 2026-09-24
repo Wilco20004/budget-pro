@@ -721,3 +721,10 @@ pre {
   overflow-x: auto;
   font-size: 0.8rem;
 }
+
+/* Payment plan add/edit form on the Plan page */
+.plan-form {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}

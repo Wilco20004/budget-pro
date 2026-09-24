@@ -284,6 +284,35 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_notifications_received ON notifications(received_at);
 `);
 
+// 1.14.0: payment plans — a temporary commitment (PayJustNow, PayFlex, a
+// medical account paid off monthly) that adds its instalments to a
+// category's budget only in the periods they fall due, then drops off.
+// ended_on = paid off early / cancelled: instalments due after it are dropped.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payment_plans (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    instalment REAL NOT NULL,
+    instalments INTEGER NOT NULL,
+    frequency TEXT NOT NULL DEFAULT 'monthly',
+    first_due TEXT NOT NULL,
+    match_pattern TEXT,
+    notes TEXT,
+    ended_on TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+`);
+if (!hasColumn('transactions', 'payment_plan_id')) {
+  db.exec('ALTER TABLE transactions ADD COLUMN payment_plan_id TEXT REFERENCES payment_plans(id) ON DELETE SET NULL');
+}
+// 1.14.0: a personal category is one household member's spending money —
+// its budget is their allowance, and anything allocated to it is theirs.
+if (!hasColumn('categories', 'personal')) {
+  db.exec('ALTER TABLE categories ADD COLUMN personal INTEGER NOT NULL DEFAULT 0');
+}
+
 // ---- Seed a sensible starting point on a brand-new database ----------------
 
 const categoryCount = (db.prepare('SELECT COUNT(*) AS n FROM categories').get() as { n: number }).n;

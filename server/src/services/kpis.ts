@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { TX_STATUS_SQL } from './categorize';
+import { planBudget } from './paymentPlans';
 import { parseIso, Period, recentPeriods, todayIso } from './periods';
 
 export interface CategoryKpi {
@@ -22,6 +23,10 @@ export interface CategoryKpi {
   /** Display group (expense categories only). */
   group_id: string | null;
   group_name: string | null;
+  /** A household member's spending money. */
+  personal: boolean;
+  /** Part of planned that comes from payment plan instalments due this period. */
+  plans_planned: number;
 }
 
 export interface GroupKpi {
@@ -115,7 +120,9 @@ export function periodKpis(period: Period): PeriodKpis {
     planned: number;
     group_id: string | null;
     group_name: string | null;
+    personal: number;
   }[];
+  const plans = planBudget(period).byCategory;
 
   const sums = db
     .prepare(
@@ -143,10 +150,11 @@ export function periodKpis(period: Period): PeriodKpis {
   for (const c of cats) {
     if (c.kind === 'transfer') continue;
     const s = sumMap.get(c.id);
-    if (c.archived && !s && !c.planned) continue;
+    const fromPlans = c.kind === 'income' ? 0 : plans.get(c.id) ?? 0;
+    if (c.archived && !s && !c.planned && !fromPlans) continue;
     const signed = s?.total ?? 0;
     const actual = r2(c.kind === 'income' ? signed : -signed);
-    const planned = r2(c.planned || 0);
+    const planned = r2((c.planned || 0) + fromPlans);
     const pace = r2(planned * fraction);
     const status = spendStatus(planned, actual, pace, fraction, c.kind === 'income');
     categories.push({
@@ -158,6 +166,8 @@ export function periodKpis(period: Period): PeriodKpis {
       requires_slip: Boolean(c.requires_slip),
       group_id: c.kind === 'expense' ? c.group_id : null,
       group_name: c.kind === 'expense' ? c.group_name : null,
+      personal: Boolean(c.personal),
+      plans_planned: r2(fromPlans),
       planned,
       actual,
       remaining: r2(planned - actual),
@@ -187,6 +197,8 @@ export function periodKpis(period: Period): PeriodKpis {
       transaction_count: unassigned.n,
       group_id: null,
       group_name: null,
+      personal: false,
+      plans_planned: 0,
     });
   }
 

@@ -14,6 +14,7 @@ import { whatsappWebhook } from './whatsapp';
 import { budgetsRouter, kpisRouter } from './routes/budgets';
 import { importsRouter } from './routes/imports';
 import { notificationsRouter } from './routes/notifications';
+import { paymentPlansRouter } from './routes/paymentPlans';
 import { productsRouter, receiptsRouter } from './routes/receipts';
 import {
   accountsRouter,
@@ -49,6 +50,7 @@ app.use('/api/keywords', keywordsRouter);
 app.use('/api/groups', groupsRouter);
 app.use('/api/merchants', merchantsRouter);
 app.use('/api/budgets', budgetsRouter);
+app.use('/api/payment-plans', paymentPlansRouter);
 app.use('/api/kpis', kpisRouter);
 app.use('/api/transactions', transactionsRouter);
 app.use('/api/imports', importsRouter);

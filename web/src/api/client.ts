@@ -2,6 +2,7 @@ import {
   Account,
   BudgetLine,
   Category,
+  PaymentPlan,
   CategoryGroup,
   EmailStatus,
   ImportRecord,
@@ -127,7 +128,12 @@ export const api = {
   kpis: (period?: string) => request<PeriodKpis>(`api/kpis${qs({ period })}`),
   trend: (count = 6, period?: string) => request<TrendPoint[]>(`api/kpis/trend${qs({ count, period })}`),
 
-  budget: (period: string) => request<{ period: Period; lines: BudgetLine[] }>(`api/budgets/${period}`),
+  budget: (period: string) => request<{ period: Period; lines: BudgetLine[]; payment_plans: PaymentPlan[] }>(`api/budgets/${period}`),
+
+  paymentPlans: (period?: string) => request<PaymentPlan[]>(`api/payment-plans${qs({ period })}`),
+  createPaymentPlan: (p: Partial<PaymentPlan>) => request<PaymentPlan>('api/payment-plans', json('POST', p)),
+  updatePaymentPlan: (id: string, p: Partial<PaymentPlan>) => request<PaymentPlan>(`api/payment-plans/${id}`, json('PUT', p)),
+  deletePaymentPlan: (id: string) => request<void>(`api/payment-plans/${id}`, json('DELETE')),
   saveBudget: (period: string, lines: { category_id: string; amount: number }[], setDefault = false) =>
     request<{ ok: true }>(`api/budgets/${period}`, json('PUT', { lines, set_default: setDefault })),
   copyPreviousBudget: (period: string) => request<{ copied: number }>(`api/budgets/${period}/copy-previous`, json('POST')),
@@ -157,7 +163,7 @@ export const api = {
   deleteMerchant: (id: string) => request<void>(`api/merchants/${id}`, json('DELETE')),
   applyRules: () => request<{ applied: number }>('api/merchants/apply', json('POST')),
 
-  transactions: (f: { period?: string; status?: string; category_id?: string; account_id?: string; q?: string }) =>
+  transactions: (f: { period?: string; status?: string; category_id?: string; account_id?: string; payment_plan_id?: string; q?: string }) =>
     request<Transaction[]>(`api/transactions${qs(f)}`),
   transaction: (id: string) => request<Transaction & { receipts: ReceiptSummary[] }>(`api/transactions/${id}`),
   createTransaction: (t: { account_id: string; date: string; description: string; amount: number; category_id?: string }) =>
@@ -166,7 +172,7 @@ export const api = {
     request<Transaction & { also_categorized: number }>(`api/transactions/${id}/category`, json('PUT', { category_id, remember })),
   setSplits: (id: string, splits: { category_id: string; amount: number; note?: string | null }[]) =>
     request<Transaction>(`api/transactions/${id}/splits`, json('PUT', { splits })),
-  patchTransaction: (id: string, p: { notes?: string | null; ignored?: boolean; no_slip_reason?: NoSlipReason | null }) =>
+  patchTransaction: (id: string, p: { notes?: string | null; ignored?: boolean; no_slip_reason?: NoSlipReason | null; payment_plan_id?: string | null }) =>
     request<Transaction>(`api/transactions/${id}`, json('PATCH', p)),
   deleteTransaction: (id: string) => request<void>(`api/transactions/${id}`, json('DELETE')),
 

@@ -8,7 +8,9 @@ import { htmlToLines } from './email/htmlText';
 import { fetchMessage, listMessages, withMailbox } from './email/mailbox';
 import { createDataReceipt, storeExtraction } from './receipts/service';
 import { productHistory, queryProducts } from './routes/receipts';
+import { createPlan } from './routes/paymentPlans';
 import { queryTransactions, setSingleCategory } from './routes/transactions';
+import { applyPlanCategory, getPlan, listPlans } from './services/paymentPlans';
 import { periodKpis, trend } from './services/kpis';
 import { currentPeriod, recentPeriods, resolvePeriod } from './services/periods';
 import { getSettings } from './settings';
@@ -82,8 +84,8 @@ function buildServer(): McpServer {
 
   server.registerTool(
     'list_categories',
-    { title: 'List categories', description: 'All budget categories with kind, default budget and whether a slip is required.', annotations: { readOnlyHint: true } },
-    async () => json(db.prepare('SELECT id, name, kind, requires_slip, default_budget, archived FROM categories ORDER BY sort_order').all())
+    { title: 'List categories', description: 'All budget categories with kind, default budget and whether a slip is required. personal=1 marks a household member’s spending money (its budget is their allowance).', annotations: { readOnlyHint: true } },
+    async () => json(db.prepare('SELECT id, name, kind, requires_slip, default_budget, personal, archived FROM categories ORDER BY sort_order').all())
   );
 
   server.registerTool(
@@ -269,6 +271,62 @@ function buildServer(): McpServer {
       const also = setSingleCategory(transaction_id, category_id, remember ?? false);
       if (no_slip_reason) db.prepare('UPDATE transactions SET no_slip_reason = ? WHERE id = ?').run(no_slip_reason, transaction_id);
       return json({ ok: true, also_categorized: also });
+    }
+  );
+
+  // ---- Payment plans ------------------------------------------------------
+
+  server.registerTool(
+    'list_payment_plans',
+    {
+      title: 'List payment plans',
+      description:
+        'Temporary instalment commitments (PayJustNow, PayFlex, medical accounts): schedule, category, paid so far, remaining, status ' +
+        '(upcoming | active | paid_off | ended) and this_period — what the plan adds to that period’s category budget.',
+      inputSchema: { period: periodArg },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ period }) => json(listPlans(resolvePeriod(period)))
+  );
+
+  server.registerTool(
+    'add_payment_plan',
+    {
+      title: 'Add a payment plan',
+      description:
+        'Add a temporary instalment plan; each instalment is added to the category’s budget in the period it falls due. ' +
+        'match_pattern (e.g. PAYJUSTNOW) links statement lines of the instalment amount automatically. Only when the user asks.',
+      inputSchema: {
+        name: z.string(),
+        category_id: z.string(),
+        instalment: z.number().positive(),
+        instalments: z.number().int().min(1).max(120),
+        frequency: z.enum(['monthly', 'fortnightly', 'weekly']).optional(),
+        first_due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        match_pattern: z.string().optional(),
+        notes: z.string().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async (a) => json(createPlan(a))
+  );
+
+  server.registerTool(
+    'link_payment_plan',
+    {
+      title: 'Link a transaction to a payment plan',
+      description: 'Mark a transaction as an instalment of a payment plan (payment_plan_id null unlinks). Puts it in the plan’s category unless it was categorised by hand.',
+      inputSchema: { transaction_id: z.string(), payment_plan_id: z.string().nullable() },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async ({ transaction_id, payment_plan_id }) => {
+      const tx = db.prepare('SELECT amount FROM transactions WHERE id = ?').get(transaction_id) as { amount: number } | undefined;
+      if (!tx) throw new Error('Transaction not found');
+      const plan = payment_plan_id ? getPlan(payment_plan_id) : null;
+      if (payment_plan_id && !plan) throw new Error('Payment plan not found');
+      db.prepare('UPDATE transactions SET payment_plan_id = ? WHERE id = ?').run(payment_plan_id, transaction_id);
+      if (plan) applyPlanCategory(transaction_id, plan.category_id, tx.amount);
+      return json({ ok: true });
     }
   );
 

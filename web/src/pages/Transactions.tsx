@@ -6,7 +6,7 @@ import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import ReceiptUpload from '../components/ReceiptUpload';
 import SplitEditor from '../components/SplitEditor';
 import { money, NO_SLIP_LABEL, shortDate, STATUS_ICON, STATUS_LABEL, todayIso } from '../format';
-import { Account, Category, NoSlipReason, Transaction } from '../types';
+import { Account, Category, NoSlipReason, PaymentPlan, Transaction } from '../types';
 import ConfirmButton from '../components/ConfirmButton';
 
 const STATUSES = ['all', 'uncategorized', 'needs_slip', 'reconciled', 'ignored'] as const;
@@ -43,12 +43,15 @@ function SkipSlip({ tx, onSkip }: { tx: Transaction; onSkip: (reason: NoSlipReas
 function Detail({
   tx,
   categories,
+  plans,
   onChanged,
 }: {
   tx: Transaction;
   categories: Category[];
+  plans: PaymentPlan[];
   onChanged: () => void;
 }) {
+  const linkable = plans.filter((p) => p.id === tx.payment_plan_id || p.status === 'active' || p.status === 'upcoming');
   const [notes, setNotes] = useState(tx.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const run = (p: Promise<unknown>) =>
@@ -83,6 +86,23 @@ function Detail({
           </>
         )}
       </div>
+      {tx.amount < 0 && (tx.payment_plan_id || linkable.length > 0) && (
+        <div className="row">
+          <span className="small muted">Payment plan instalment:</span>
+          <select
+            value={tx.payment_plan_id ?? ''}
+            onChange={(e) => run(api.patchTransaction(tx.id, { payment_plan_id: e.target.value || null }))}
+            aria-label="Payment plan"
+          >
+            <option value="">— not a plan payment</option>
+            {linkable.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({money(p.instalment)})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="row">
         <input
           placeholder="Notes"
@@ -191,10 +211,12 @@ export default function Transactions() {
   const [params, setParams] = useSearchParams();
   const status = params.get('status') ?? 'all';
   const categoryFilter = params.get('category');
+  const planFilter = params.get('plan');
   const [q, setQ] = useState('');
   const [accountId, setAccountId] = useState('');
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [plans, setPlans] = useState<PaymentPlan[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [remember, setRemember] = useState(() => {
@@ -211,13 +233,19 @@ export default function Transactions() {
   useEffect(() => {
     api.categories().then(setCategories).catch(() => undefined);
     api.accounts().then(setAccounts).catch(() => undefined);
+    api.paymentPlans().then(setPlans).catch(() => undefined);
   }, []);
 
   const load = () => {
     if (!selected) return;
     setLoading(true);
     api
-      .transactions({ period: selected.start, status, category_id: categoryFilter ?? undefined, account_id: accountId || undefined, q: q || undefined })
+      .transactions({
+        // A plan's payments span periods, so its filter shows them all.
+        period: planFilter ? 'all' : selected.start,
+        payment_plan_id: planFilter ?? undefined,
+        status,
+        category_id: categoryFilter ?? undefined, account_id: accountId || undefined, q: q || undefined })
       .then((r) => {
         setTxs(r);
         setError(null);
@@ -226,7 +254,7 @@ export default function Transactions() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [selected?.start, status, categoryFilter, accountId]);
+  useEffect(load, [selected?.start, status, categoryFilter, planFilter, accountId]);
   useEffect(() => {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
@@ -251,6 +279,7 @@ export default function Transactions() {
   }
 
   const catName = categoryFilter ? categories.find((c) => c.id === categoryFilter)?.name : null;
+  const planName = planFilter ? plans.find((p) => p.id === planFilter)?.name ?? 'Payment plan' : null;
   const totalOut = txs.filter((t) => t.amount < 0 && !t.ignored).reduce((a, t) => a + t.amount, 0);
   const totalIn = txs.filter((t) => t.amount > 0 && !t.ignored).reduce((a, t) => a + t.amount, 0);
 
@@ -285,6 +314,22 @@ export default function Transactions() {
             </option>
           ))}
         </select>
+        {planName && (
+          <span className="chip">
+            💳 {planName} (all periods)
+            <button
+              className="link"
+              onClick={() => {
+                const next = new URLSearchParams(params);
+                next.delete('plan');
+                setParams(next);
+              }}
+              aria-label="Clear payment plan filter"
+            >
+              ✕
+            </button>
+          </span>
+        )}
         {catName && (
           <span className="chip">
             {catName}
@@ -342,6 +387,7 @@ export default function Transactions() {
                     <td>
                       <div style={{ opacity: t.ignored ? 0.5 : 1 }}>{t.description}</div>
                       {accounts.length > 1 && <div className="small muted">{t.account_name}</div>}
+                      {t.payment_plan_name && <div className="small muted">💳 {t.payment_plan_name}</div>}
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {t.splits.length > 1 ? (
@@ -394,7 +440,7 @@ export default function Transactions() {
                   {expanded === t.id && (
                     <tr className="expanded">
                       <td colSpan={5}>
-                        <Detail tx={t} categories={categories} onChanged={load} />
+                        <Detail tx={t} categories={categories} plans={plans} onChanged={load} />
                       </td>
                     </tr>
                   )}

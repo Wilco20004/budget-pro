@@ -1,34 +1,41 @@
 import { Fragment, useEffect, useState } from 'react';
 import { api } from '../api/client';
+import PaymentPlans from '../components/PaymentPlans';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import { money } from '../format';
-import { BudgetLine } from '../types';
+import { BudgetLine, PaymentPlan } from '../types';
 
 const KIND_TITLE: Record<string, string> = { income: 'Expected income', expense: 'Spending', savings: 'Savings' };
 
 export default function Budget() {
   const { selected } = usePeriod();
   const [lines, setLines] = useState<BudgetLine[]>([]);
+  const [plans, setPlans] = useState<PaymentPlan[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [setDefault, setSetDefault] = useState(true);
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = () => {
+  // keepValues: a payment plan changed — refresh the plan add-ons without losing unsaved typing.
+  const load = (keepValues = false) => {
     if (!selected) return;
     api
       .budget(selected.start)
       .then((b) => {
         setLines(b.lines);
+        setPlans(b.payment_plans);
+        if (keepValues) return;
         setValues(Object.fromEntries(b.lines.map((l) => [l.category_id, l.planned ? String(l.planned) : ''])));
         setDirty(false);
       })
       .catch((e) => setError(e.message));
   };
-  useEffect(load, [selected?.start]);
+  useEffect(() => load(), [selected?.start]);
 
-  const total = (kind: string) => lines.filter((l) => l.kind === kind).reduce((a, l) => a + (parseFloat(values[l.category_id]) || 0), 0);
+  // What a line plans in total: the amount typed in plus payment plan instalments due this period.
+  const lineTotal = (l: BudgetLine) => (parseFloat(values[l.category_id]) || 0) + l.plans;
+  const total = (kind: string) => lines.filter((l) => l.kind === kind).reduce((a, l) => a + lineTotal(l), 0);
   const income = total('income');
   const out = total('expense') + total('savings');
 
@@ -110,7 +117,7 @@ export default function Budget() {
                           {money(
                             ls
                               .filter((x) => x.group_id === l.group_id)
-                              .reduce((a, x) => a + (parseFloat(values[x.category_id]) || 0), 0),
+                              .reduce((a, x) => a + lineTotal(x), 0),
                             { whole: true }
                           )}
                         </td>
@@ -120,6 +127,10 @@ export default function Budget() {
                       <td>
                         <span className="icon">{l.icon}</span> {l.name}
                         {l.requires_slip ? <span className="small muted"> · slip required</span> : null}
+                        {l.personal ? <span className="small muted"> · spending money</span> : null}
+                        {l.plans > 0 && (
+                          <div className="small muted">+ {money(l.plans, { whole: true })} payment plans this period</div>
+                        )}
                       </td>
                       <td className="num">
                         <button
@@ -155,6 +166,10 @@ export default function Budget() {
           </div>
         );
       })}
+
+      {selected && (
+        <PaymentPlans periodStart={selected.start} plans={plans} categories={lines} onChange={() => load(true)} />
+      )}
 
       <div className="row">
         <label className="row small" style={{ gap: 4 }}>

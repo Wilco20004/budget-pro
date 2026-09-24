@@ -6,10 +6,11 @@ import { money, shortDate } from '../format';
 import { Account, Category, CategoryGroup, Keyword, Merchant } from '../types';
 import ConfirmButton from '../components/ConfirmButton';
 
-type Tab = 'accounts' | 'categories' | 'groups' | 'merchants' | 'keywords';
+type Tab = 'accounts' | 'categories' | 'members' | 'groups' | 'merchants' | 'keywords';
 const TABS: [Tab, string][] = [
   ['accounts', 'Accounts'],
   ['categories', 'Categories'],
+  ['members', 'Spending money'],
   ['groups', 'Groups'],
   ['merchants', 'Merchant rules'],
   ['keywords', 'Slip keywords'],
@@ -364,6 +365,111 @@ function Categories({ onError }: { onError: (m: string) => void }) {
   );
 }
 
+/** Household members' spending money: each member is a personal category
+ *  whose budget is their allowance. Anything allocated to it — a whole
+ *  transaction or one line on a slip — counts against their allowance. */
+function Members({ onError }: { onError: (m: string) => void }) {
+  const [list, setList] = useState<Category[]>([]);
+  const [name, setName] = useState('');
+  const [amount, setAmount] = useState('');
+  const load = () =>
+    api
+      .categories()
+      .then((cs) => setList(cs.filter((c) => c.personal)))
+      .catch((e) => onError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+
+  const patch = (c: Category, p: Partial<Category>) =>
+    api
+      .updateCategory(c.id, { ...c, ...p })
+      .then(load)
+      .catch((e) => onError(e.message));
+
+  return (
+    <>
+      <div className="card">
+        <p className="small" style={{ marginTop: 0 }}>
+          Everyone in the household gets their own spending money. Each person here is a category in the <strong>Personal</strong>{' '}
+          group: put a transaction (or a single line on a slip) in their name and it comes off their allowance. The dashboard shows
+          what each person has left.
+        </p>
+        <div className="row">
+          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder="Spending money per period"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            style={{ width: '14rem' }}
+          />
+          <button
+            className="primary"
+            onClick={() =>
+              name.trim() &&
+              api
+                .createCategory({ name: name.trim(), kind: 'expense', icon: '👤', personal: 1, default_budget: parseFloat(amount) || 0 })
+                .then(() => {
+                  setName('');
+                  setAmount('');
+                  load();
+                })
+                .catch((e) => onError(e.message))
+            }
+          >
+            Add person
+          </button>
+        </div>
+      </div>
+      {list.length > 0 && (
+        <div className="card" style={{ padding: 0 }}>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Icon</th>
+                  <th>Name</th>
+                  <th className="num">Spending money</th>
+                  <th>Archived</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((c) => (
+                  <tr key={c.id} style={{ opacity: c.archived ? 0.55 : 1 }}>
+                    <td>
+                      <input defaultValue={c.icon ?? ''} style={{ width: '3rem' }} onBlur={(e) => e.target.value !== (c.icon ?? '') && patch(c, { icon: e.target.value })} />
+                    </td>
+                    <td>
+                      <input defaultValue={c.name} onBlur={(e) => e.target.value !== c.name && patch(c, { name: e.target.value })} />
+                    </td>
+                    <td className="num">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        defaultValue={c.default_budget || ''}
+                        style={{ width: '8rem', textAlign: 'right' }}
+                        onBlur={(e) => (parseFloat(e.target.value) || 0) !== c.default_budget && patch(c, { default_budget: parseFloat(e.target.value) || 0 })}
+                      />
+                    </td>
+                    <td>
+                      <input type="checkbox" checked={Boolean(c.archived)} onChange={(e) => patch(c, { archived: e.target.checked ? 1 : 0 })} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="small muted" style={{ margin: '0.5rem 0.75rem' }}>
+            The amount is the default for every period; change one period’s amount (a birthday month) on the Plan page.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
 function Merchants({ onError }: { onError: (m: string) => void }) {
   const [list, setList] = useState<Merchant[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -559,6 +665,7 @@ export default function Setup() {
       )}
       {tab === 'accounts' && <Accounts onError={setError} />}
       {tab === 'categories' && <Categories onError={setError} />}
+      {tab === 'members' && <Members onError={setError} />}
       {tab === 'groups' && <Groups onError={setError} />}
       {tab === 'merchants' && <Merchants onError={setError} />}
       {tab === 'keywords' && <Keywords onError={setError} />}

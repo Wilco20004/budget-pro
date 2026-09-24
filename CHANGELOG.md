@@ -1,5 +1,20 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.14.0 — 2026-09-24
+
+- **Payment plans** (Plan page): PayJustNow, PayFlex, a medical account —
+  a number of instalments, monthly / every 2 weeks / weekly. Each
+  instalment is added to its category's budget in the period it's due and
+  drops off once the plan is done. With statement text, matching bank
+  lines (instalment amount ±2%) are linked and categorised automatically;
+  link or unlink by hand in a transaction's details. Shows paid so far,
+  remaining and next due; End a plan settled early. MCP tools
+  list_payment_plans, add_payment_plan and link_payment_plan.
+- **Spending money** (Setup → Spending money): each household member gets
+  a personal category with their allowance as its budget; allocate a
+  transaction or a single slip line to them. The dashboard shows what each
+  person has left.
+
 ## 1.13.0 — 2026-09-24
 
 - **WhatsApp slips** through the NeuraCore WhatsApp platform's callbacks:

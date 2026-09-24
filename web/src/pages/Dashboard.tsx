@@ -27,6 +27,8 @@ function GroupBlock({ g, members, fraction }: { g: GroupKpi; members: CategoryKp
     transaction_count: 0,
     group_id: g.group_id,
     group_name: g.name,
+    personal: false,
+    plans_planned: members.reduce((a, c) => a + c.plans_planned, 0),
   };
   return (
     <div className="group-block">
@@ -69,7 +71,7 @@ function Bullet({ c, fraction, header = false }: { c: CategoryKpi; fraction: num
       )}
       <div
         className="track"
-        title={`Actual ${money(c.actual)} of ${money(c.planned)} planned${c.planned ? ` — on-pace spend by today is ${money(c.pace_expected)}` : ''}`}
+        title={`Actual ${money(c.actual)} of ${money(c.planned)} planned${c.plans_planned ? ` (incl. ${money(c.plans_planned)} payment plans)` : ''}${c.planned ? ` — on-pace spend by today is ${money(c.pace_expected)}` : ''}`}
       >
         <div className={`fill ${cls}`} style={{ width: pct(c.actual) }} />
         {c.planned > 0 && <div className="plan-mark" style={{ left: `calc(${pct(c.planned)} - 1px)` }} />}
@@ -103,6 +105,7 @@ export default function Dashboard() {
   const t = k?.totals;
   const expenses = k?.categories.filter((c) => c.kind === 'expense' && c.status !== 'no_activity') ?? [];
   const savings = k?.categories.filter((c) => c.kind === 'savings' && c.status !== 'no_activity') ?? [];
+  const personal = k?.categories.filter((c) => c.personal && (c.planned || c.actual)) ?? [];
   const toDo = k ? k.recon.uncategorized + k.recon.needs_slip : 0;
 
   return (
@@ -174,6 +177,28 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          {personal.length > 0 && (
+            <div className="card">
+              <h2>Spending money</h2>
+              <div className="tiles" style={{ marginBottom: 0 }}>
+                {personal.map((c) => (
+                  <Link key={c.category_id} to={`/transactions?category=${c.category_id}`} className="tile" style={{ color: 'inherit', textDecoration: 'none' }}>
+                    <div className="label">
+                      {c.icon} {c.name}
+                    </div>
+                    <div className="value" style={{ color: c.remaining < 0 ? 'var(--critical-text)' : undefined }}>
+                      {money(c.remaining, { whole: true })}
+                    </div>
+                    <div className="sub">
+                      {c.remaining < 0 ? 'over — ' : 'left — '}
+                      {money(c.actual, { whole: true })} of {money(c.planned, { whole: true })} spent
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {t.unallocated < 0 && (
             <div className="notice">

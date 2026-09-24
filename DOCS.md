@@ -227,6 +227,39 @@ out). The dashboard then shows each group's subtotal with its categories
 under it, and the Plan page subtotals by group. Groups are display-only:
 budgets and reconciling stay per category.
 
+### Payment plans
+
+For temporary commitments like PayJustNow, PayFlex or a medical account
+you're paying off. Add one on the **Plan** page (*Payment plans* → *Add
+payment plan*): give it a name, a budget category, the instalment amount,
+the number of instalments, how often they're due (monthly, every 2 weeks or
+weekly) and the first payment date. You can also type the purchase total
+and the instalment is worked out for you.
+
+Each instalment is added to its category's budget in the period it falls
+due, on top of the amount you planned. So the budget goes up while the plan
+runs and drops back once it's done. There's nothing to remember to undo.
+
+If you fill in **Statement text** (e.g. `PAYJUSTNOW`), bank lines that
+contain it and match the instalment amount (within 2%) are linked to the
+plan and put in its category automatically. That applies to lines already
+imported and to future ones. When two plans at the same shop run at once,
+the closest amount wins. You can also link or unlink a payment by hand in a
+transaction's details. The plan shows paid so far, what's left and the next
+due date.
+
+**End** a plan that's settled early or cancelled: instalments due after
+today leave the budget.
+
+### Spending money
+
+**Setup → Spending money** gives each household member their own
+allowance. Each person is a category in the *Personal* group, with the
+allowance as its budget. Put a transaction in their name, or a single line
+on a slip (the chocolate on the Checkers slip), and it comes off their
+spending money. The dashboard shows what each person has left this period.
+To change one period's amount, edit it on the Plan page.
+
 ## Home Assistant sensors
 
 Updated on every change and every 5 minutes (turn off in Settings):

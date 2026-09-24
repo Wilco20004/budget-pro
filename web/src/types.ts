@@ -18,6 +18,8 @@ export interface Category {
   sort_order: number;
   archived: number;
   group_id: string | null;
+  /** 1 = a household member's spending money. */
+  personal: number;
 }
 
 export interface Account {
@@ -101,6 +103,8 @@ export interface Transaction {
   provisional?: number;
   /** Set when a slip-required transaction is reconciled without a slip. */
   no_slip_reason?: NoSlipReason | null;
+  payment_plan_id?: string | null;
+  payment_plan_name?: string | null;
   splits: Split[];
 }
 
@@ -121,6 +125,9 @@ export interface CategoryKpi {
   transaction_count: number;
   group_id: string | null;
   group_name: string | null;
+  personal: boolean;
+  /** Part of planned from payment plan instalments due this period. */
+  plans_planned: number;
 }
 
 export interface PeriodKpis {
@@ -173,9 +180,38 @@ export interface BudgetLine {
   default_budget: number;
   override: number | null;
   planned: number;
+  /** Added on top of planned by payment plan instalments due this period. */
+  plans: number;
+  personal: number;
   previous_actual: number;
   group_id: string | null;
   group_name: string | null;
+}
+
+export type PlanFrequency = 'monthly' | 'fortnightly' | 'weekly';
+
+export interface PaymentPlan {
+  id: string;
+  name: string;
+  category_id: string;
+  category_name: string | null;
+  category_icon: string | null;
+  instalment: number;
+  instalments: number;
+  frequency: PlanFrequency;
+  first_due: string;
+  match_pattern: string | null;
+  notes: string | null;
+  ended_on: string | null;
+  total: number;
+  schedule: string[];
+  last_due: string | null;
+  next_due: string | null;
+  paid_count: number;
+  paid_total: number;
+  remaining: number;
+  status: 'upcoming' | 'active' | 'paid_off' | 'ended';
+  this_period?: number;
 }
 
 export interface ImportRecord {

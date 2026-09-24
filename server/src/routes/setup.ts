@@ -159,22 +159,35 @@ function categoryInput(body: Record<string, unknown>) {
     archived: body.archived ? 1 : 0,
     // Groups only apply to spending; other kinds are shown in their own sections.
     group_id: kind === 'expense' ? str(body.group_id) : null,
+    personal: body.personal && kind === 'expense' ? 1 : 0,
   };
+}
+
+/** Spending-money categories live in a "Personal" group unless placed elsewhere. */
+function personalGroupId(): string {
+  const g = db.prepare("SELECT id FROM category_groups WHERE name = 'Personal'").get() as { id: string } | undefined;
+  if (g) return g.id;
+  const id = uuid();
+  const t = now();
+  const order = ((db.prepare('SELECT MAX(sort_order) AS m FROM category_groups').get() as { m: number | null }).m ?? -1) + 1;
+  db.prepare('INSERT INTO category_groups (id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(id, 'Personal', order, t, t);
+  return id;
 }
 
 categoriesRouter.post(
   '/',
   h((req, res) => {
     const c = categoryInput(req.body ?? {});
+    if (c.personal && !c.group_id) c.group_id = personalGroupId();
     const id = uuid();
     const t = now();
     if (!req.body?.sort_order) {
       c.sort_order = ((db.prepare('SELECT MAX(sort_order) AS m FROM categories').get() as { m: number | null }).m ?? 0) + 1;
     }
     db.prepare(
-      `INSERT INTO categories (id, name, kind, color, icon, requires_slip, default_budget, sort_order, archived, group_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, t, t);
+      `INSERT INTO categories (id, name, kind, color, icon, requires_slip, default_budget, sort_order, archived, group_id, personal, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, c.personal, t, t);
     res.status(201).json(db.prepare('SELECT * FROM categories WHERE id = ?').get(id));
   })
 );
@@ -185,10 +198,10 @@ categoriesRouter.put(
     const c = categoryInput(req.body ?? {});
     const r = db
       .prepare(
-        `UPDATE categories SET name = ?, kind = ?, color = ?, icon = ?, requires_slip = ?, default_budget = ?, sort_order = ?, archived = ?, group_id = ?, updated_at = ?
+        `UPDATE categories SET name = ?, kind = ?, color = ?, icon = ?, requires_slip = ?, default_budget = ?, sort_order = ?, archived = ?, group_id = ?, personal = ?, updated_at = ?
          WHERE id = ?`
       )
-      .run(c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, now(), req.params.id);
+      .run(c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, c.personal, now(), req.params.id);
     if (!r.changes) notFound('Category not found');
     publishSensors().catch(() => undefined);
     res.json(db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id));

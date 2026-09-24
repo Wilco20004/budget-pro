@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
 import { publishSensors } from '../ha';
 import { autoCategorize, suggestMerchantPattern, TX_STATUS_SQL } from '../services/categorize';
+import { applyPlanCategory, getPlan } from '../services/paymentPlans';
 import { resolvePeriod } from '../services/periods';
 import { h, notFound, num, round2, str } from '../util';
 
@@ -16,6 +17,7 @@ export interface TxQuery {
   status?: string;
   category_id?: string;
   account_id?: string;
+  payment_plan_id?: string;
   q?: string;
   limit?: number;
   offset?: number;
@@ -44,6 +46,10 @@ export function queryTransactions(q: TxQuery) {
     where.push('t.account_id = ?');
     params.push(q.account_id);
   }
+  if (q.payment_plan_id) {
+    where.push('t.payment_plan_id = ?');
+    params.push(q.payment_plan_id);
+  }
   if (q.category_id) {
     where.push('EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = t.id AND s.category_id = ?)');
     params.push(q.category_id);
@@ -59,6 +65,7 @@ export function queryTransactions(q: TxQuery) {
   const sql = `
     SELECT * FROM (
       SELECT t.*, a.name AS account_name, m.name AS merchant_name, ${TX_STATUS_SQL} AS status,
+        (SELECT pp.name FROM payment_plans pp WHERE pp.id = t.payment_plan_id) AS payment_plan_name,
         (SELECT r.id FROM receipts r WHERE r.transaction_id = t.id LIMIT 1) AS receipt_id
       FROM transactions t
       JOIN accounts a ON a.id = t.account_id
@@ -82,7 +89,8 @@ export function queryTransactions(q: TxQuery) {
 function getTransaction(id: string) {
   const t = db
     .prepare(
-      `SELECT t.*, a.name AS account_name, m.name AS merchant_name, ${TX_STATUS_SQL} AS status
+      `SELECT t.*, a.name AS account_name, m.name AS merchant_name, ${TX_STATUS_SQL} AS status,
+              (SELECT pp.name FROM payment_plans pp WHERE pp.id = t.payment_plan_id) AS payment_plan_name
        FROM transactions t JOIN accounts a ON a.id = t.account_id LEFT JOIN merchants m ON m.id = t.merchant_id WHERE t.id = ?`
     )
     .get(id) as Record<string, unknown> | undefined;
@@ -109,6 +117,7 @@ transactionsRouter.get(
         status: q.status,
         category_id: q.category_id,
         account_id: q.account_id,
+        payment_plan_id: q.payment_plan_id,
         q: q.q,
         limit: q.limit ? num(q.limit) : undefined,
         offset: q.offset ? num(q.offset) : undefined,
@@ -174,6 +183,14 @@ transactionsRouter.patch(
       const r = req.body.no_slip_reason ?? null;
       if (r !== null && !NO_SLIP_REASONS.includes(r)) throw new Error(`no_slip_reason must be one of ${NO_SLIP_REASONS.join(', ')} or null`);
       db.prepare('UPDATE transactions SET no_slip_reason = ? WHERE id = ?').run(r, id);
+    }
+    if ('payment_plan_id' in (req.body ?? {})) {
+      const planId = str(req.body.payment_plan_id);
+      const plan = planId ? getPlan(planId) : null;
+      if (planId && !plan) notFound('Payment plan not found');
+      db.prepare('UPDATE transactions SET payment_plan_id = ? WHERE id = ?').run(planId, id);
+      const tx = db.prepare('SELECT amount FROM transactions WHERE id = ?').get(id) as { amount: number };
+      if (plan) applyPlanCategory(id, plan.category_id, tx.amount);
     }
     db.prepare('UPDATE transactions SET updated_at = ? WHERE id = ?').run(now(), id);
     publishSensors().catch(() => undefined);
