@@ -1,0 +1,280 @@
+import Database from 'better-sqlite3';
+import fs from 'fs';
+import path from 'path';
+import { v4 as uuid } from 'uuid';
+
+export const DATA_DIR = process.env.BUDGETPRO_DATA_DIR || path.join(__dirname, '..', '..', 'data');
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+export const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+const dbPath = path.join(DATA_DIR, 'budgetpro.db');
+export const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
+
+export function now(): string {
+  return new Date().toISOString();
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  -- An account is one bank account or card that statements get imported
+  -- into. match_hint is matched against account numbers found inside an
+  -- imported file (FNB CSVs carry the account number in their preamble) so
+  -- files dropped in the inbox folder land on the right account.
+  CREATE TABLE IF NOT EXISTS accounts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    bank TEXT NOT NULL DEFAULT 'other',
+    type TEXT NOT NULL DEFAULT 'cheque',
+    match_hint TEXT,
+    -- Some card exports show purchases as positive numbers; flipping keeps
+    -- "negative = money out" true for every account.
+    flip_sign INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  -- kind decides how a category counts in the KPIs:
+  --   expense  — money out, compared against its budget
+  --   income   — money in (salary), compared against expected income
+  --   savings  — money set aside; counts as "planned outflow" but reported
+  --              separately so a big savings transfer doesn't look like overspend
+  --   transfer — moving money between your own accounts; excluded entirely
+  -- requires_slip = a transaction in this category isn't reconciled until a
+  -- receipt is attached (the "smart" categories — groceries, medical, ...).
+  CREATE TABLE IF NOT EXISTS categories (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL DEFAULT 'expense',
+    color TEXT,
+    icon TEXT,
+    requires_slip INTEGER NOT NULL DEFAULT 0,
+    default_budget REAL NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    archived INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  -- Planned amount for one category in one budget period. A period is
+  -- identified by its start date (YYYY-MM-DD); a missing row means "use the
+  -- category's default_budget".
+  CREATE TABLE IF NOT EXISTS budget_lines (
+    period_start TEXT NOT NULL,
+    category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    amount REAL NOT NULL,
+    PRIMARY KEY (period_start, category_id)
+  );
+
+  -- A merchant is both an auto-categorisation rule (any transaction whose
+  -- description contains one of its patterns gets its default category) and
+  -- the "shop" a receipt came from (Checkers → Groceries by default, even
+  -- though individual slip lines may be Kids or Medical).
+  CREATE TABLE IF NOT EXISTS merchants (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    patterns TEXT NOT NULL,
+    default_category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS imports (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    format TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'upload',
+    row_count INTEGER NOT NULL DEFAULT 0,
+    new_count INTEGER NOT NULL DEFAULT 0,
+    duplicate_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );
+
+  -- amount is signed from the account's point of view: negative = money out.
+  -- fingerprint (account + date + amount + normalised description + an
+  -- occurrence counter) is what stops re-importing an overlapping statement
+  -- from creating duplicates.
+  CREATE TABLE IF NOT EXISTS transactions (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    import_id TEXT REFERENCES imports(id) ON DELETE SET NULL,
+    date TEXT NOT NULL,
+    description TEXT NOT NULL,
+    amount REAL NOT NULL,
+    balance REAL,
+    fingerprint TEXT NOT NULL UNIQUE,
+    merchant_id TEXT REFERENCES merchants(id) ON DELETE SET NULL,
+    notes TEXT,
+    ignored INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+
+  -- How a transaction's amount is divided over categories. Same sign as the
+  -- transaction. One split = simple categorisation; several = a Checkers slip
+  -- that was part groceries, part nappies, part medicine. source records who
+  -- made it: 'manual', 'rule' (merchant default) or 'receipt' (from slip lines).
+  CREATE TABLE IF NOT EXISTS transaction_splits (
+    id TEXT PRIMARY KEY,
+    transaction_id TEXT NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    amount REAL NOT NULL,
+    note TEXT,
+    source TEXT NOT NULL DEFAULT 'manual'
+  );
+  CREATE INDEX IF NOT EXISTS idx_splits_tx ON transaction_splits(transaction_id);
+
+  -- status: pending → processing → parsed | failed.
+  CREATE TABLE IF NOT EXISTS receipts (
+    id TEXT PRIMARY KEY,
+    file_path TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    original_name TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error TEXT,
+    engine TEXT,
+    ocr_text TEXT,
+    merchant_id TEXT REFERENCES merchants(id) ON DELETE SET NULL,
+    merchant_name TEXT,
+    receipt_date TEXT,
+    total REAL,
+    transaction_id TEXT REFERENCES transactions(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  -- The product database built up from slips: one row per distinct thing
+  -- you buy ("HUGGIES DRY COMFORT 4 58S"), remembering which category it
+  -- belongs to so the next slip with it is categorised automatically.
+  CREATE TABLE IF NOT EXISTS products (
+    id TEXT PRIMARY KEY,
+    name_key TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS receipt_items (
+    id TEXT PRIMARY KEY,
+    receipt_id TEXT NOT NULL REFERENCES receipts(id) ON DELETE CASCADE,
+    product_id TEXT REFERENCES products(id) ON DELETE SET NULL,
+    raw_name TEXT NOT NULL,
+    quantity REAL NOT NULL DEFAULT 1,
+    amount REAL NOT NULL,
+    category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- Fallback for products never seen before: a slip line containing the
+  -- keyword gets this category (NAPPIES → Kids, PANADO → Medical).
+  CREATE TABLE IF NOT EXISTS category_keywords (
+    id TEXT PRIMARY KEY,
+    keyword TEXT NOT NULL UNIQUE,
+    category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE
+  );
+`);
+
+// ---- Seed a sensible starting point on a brand-new database ----------------
+
+const categoryCount = (db.prepare('SELECT COUNT(*) AS n FROM categories').get() as { n: number }).n;
+if (categoryCount === 0) {
+  const t = now();
+  const insertCat = db.prepare(
+    `INSERT INTO categories (id, name, kind, color, icon, requires_slip, default_budget, sort_order, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
+  );
+  const seed: [string, string, string, string, number][] = [
+    ['Salary', 'income', '#0ca30c', '💰', 0],
+    ['Other income', 'income', '#1baf7a', '➕', 0],
+    ['Groceries', 'expense', '#2a78d6', '🛒', 1],
+    ['Kids', 'expense', '#e87ba4', '🧸', 1],
+    ['Medical', 'expense', '#e34948', '💊', 1],
+    ['Fuel', 'expense', '#eda100', '⛽', 1],
+    ['Eating out', 'expense', '#eb6834', '🍔', 0],
+    ['Household', 'expense', '#4a3aa7', '🏠', 1],
+    ['Bond / Rent', 'expense', '#52514e', '🏦', 0],
+    ['Utilities', 'expense', '#256abf', '💡', 0],
+    ['Insurance', 'expense', '#184f95', '🛡️', 0],
+    ['Phone & Internet', 'expense', '#1c5cab', '📶', 0],
+    ['Subscriptions', 'expense', '#9085e9', '📺', 0],
+    ['Bank fees', 'expense', '#898781', '🏧', 0],
+    ['Personal care', 'expense', '#d55181', '🧴', 0],
+    ['Entertainment', 'expense', '#199e70', '🎉', 0],
+    ['Savings', 'savings', '#008300', '🐷', 0],
+    ['Transfers', 'transfer', '#c3c2b7', '🔁', 0],
+  ];
+  const ids: Record<string, string> = {};
+  seed.forEach(([name, kind, color, icon, slip], i) => {
+    const id = uuid();
+    ids[name] = id;
+    insertCat.run(id, name, kind, color, icon, slip, i, t, t);
+  });
+
+  // South African retailers and billers as they show up on FNB / Discovery
+  // statement lines. Patterns are case-insensitive substrings.
+  const insertMerchant = db.prepare(
+    `INSERT INTO merchants (id, name, patterns, default_category_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+  );
+  const merchants: [string, string, string][] = [
+    ['Salary', 'SALARY|SALARIS', 'Salary'],
+    ['Checkers', 'CHECKERS', 'Groceries'],
+    ['Shoprite', 'SHOPRITE', 'Groceries'],
+    ['Pick n Pay', 'PICK N PAY|PNP ', 'Groceries'],
+    ['Woolworths', 'WOOLWORTHS|WW ', 'Groceries'],
+    ['Spar', 'SPAR', 'Groceries'],
+    ['Food Lover\'s Market', 'FOOD LOVER', 'Groceries'],
+    ['Dis-Chem', 'DIS-CHEM|DISCHEM', 'Medical'],
+    ['Clicks', 'CLICKS', 'Medical'],
+    ['Baby City', 'BABY CITY|BABYCITY', 'Kids'],
+    ['Engen', 'ENGEN', 'Fuel'],
+    ['Shell', 'SHELL', 'Fuel'],
+    ['BP', 'BP ', 'Fuel'],
+    ['Sasol', 'SASOL', 'Fuel'],
+    ['Caltex / Astron', 'CALTEX|ASTRON', 'Fuel'],
+    ['Builders', 'BUILDERS', 'Household'],
+    ['Makro', 'MAKRO', 'Household'],
+    ['Uber Eats', 'UBER EATS|UBEREATS', 'Eating out'],
+    ['Mr D', 'MR D|MRD FOOD', 'Eating out'],
+    ['Netflix', 'NETFLIX', 'Subscriptions'],
+    ['Showmax', 'SHOWMAX', 'Subscriptions'],
+    ['Spotify', 'SPOTIFY', 'Subscriptions'],
+    ['DStv', 'DSTV|MULTICHOICE', 'Subscriptions'],
+    ['Vodacom', 'VODACOM', 'Phone & Internet'],
+    ['MTN', 'MTN ', 'Phone & Internet'],
+    ['Telkom', 'TELKOM', 'Phone & Internet'],
+    ['Prepaid electricity', 'PREPAID ELEC|ELECTRICITY|ESKOM', 'Utilities'],
+    ['Bank fees', 'MONTHLY ACCOUNT FEE|SERVICE FEE|#MONTHLY|BANK CHARGE|ADMIN FEE', 'Bank fees'],
+  ];
+  for (const [name, patterns, cat] of merchants) {
+    insertMerchant.run(uuid(), name, patterns, ids[cat] ?? null, t, t);
+  }
+
+  const insertKeyword = db.prepare('INSERT INTO category_keywords (id, keyword, category_id) VALUES (?, ?, ?)');
+  const keywords: [string, string][] = [
+    ['NAPPIES', 'Kids'], ['NAPPY', 'Kids'], ['DIAPER', 'Kids'], ['HUGGIES', 'Kids'], ['PAMPERS', 'Kids'],
+    ['WIPES', 'Kids'], ['BABY', 'Kids'], ['FORMULA', 'Kids'], ['PURITY', 'Kids'], ['NAN ', 'Kids'],
+    ['PANADO', 'Medical'], ['MEDICINE', 'Medical'], ['SYRUP', 'Medical'], ['TABLETS', 'Medical'],
+    ['VITAMIN', 'Medical'], ['PLASTERS', 'Medical'], ['CALPOL', 'Medical'], ['NUROFEN', 'Medical'],
+    ['GRAND-PA', 'Medical'], ['STREPSILS', 'Medical'],
+    ['DISHWASH', 'Household'], ['DETERGENT', 'Household'], ['BLEACH', 'Household'], ['TOILET PAPER', 'Household'],
+    ['SERVIETTES', 'Household'], ['SUNLIGHT', 'Household'], ['HANDY ANDY', 'Household'], ['DOMESTOS', 'Household'],
+    ['SHAMPOO', 'Personal care'], ['DEODORANT', 'Personal care'], ['TOOTHPASTE', 'Personal care'], ['LOTION', 'Personal care'],
+  ];
+  for (const [kw, cat] of keywords) {
+    insertKeyword.run(uuid(), kw, ids[cat]);
+  }
+}

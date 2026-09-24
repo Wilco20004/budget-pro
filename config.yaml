@@ -1,0 +1,32 @@
+name: BudgetPro
+version: "1.0.0"
+slug: budgetpro
+description: Payday-to-payday household budget — statement import, slip OCR, planned vs actual KPIs, and an MCP/API for AI analysis
+url: https://github.com/Wilco20004/budget-pro
+arch:
+  - aarch64
+  - amd64
+  - armv7
+init: false
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8097
+homeassistant_api: true
+panel_icon: mdi:cash-multiple
+panel_title: BudgetPro
+webui: "http://[HOST]:[PORT:8097]/"
+ports:
+  8097/tcp: 8097
+ports_description:
+  8097/tcp: REST API and MCP endpoint for AI clients (token required; the UI itself is in the HA sidebar)
+map:
+  - share:rw
+options:
+  anthropic_api_key: ""
+  ai_model: "claude-opus-5"
+  inbox_dir: "/share/budgetpro/inbox"
+schema:
+  anthropic_api_key: password?
+  ai_model: str?
+  inbox_dir: str?

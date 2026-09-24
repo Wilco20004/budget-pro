@@ -1,0 +1,446 @@
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { api } from '../api/client';
+import CategorySelect from '../components/CategorySelect';
+import { money, shortDate } from '../format';
+import { Account, Category, Keyword, Merchant } from '../types';
+
+type Tab = 'accounts' | 'categories' | 'merchants' | 'keywords';
+const TABS: [Tab, string][] = [
+  ['accounts', 'Accounts'],
+  ['categories', 'Categories'],
+  ['merchants', 'Merchant rules'],
+  ['keywords', 'Slip keywords'],
+];
+
+function Accounts({ onError }: { onError: (m: string) => void }) {
+  const [list, setList] = useState<Account[]>([]);
+  const blank = { name: '', bank: 'fnb', type: 'cheque', match_hint: '', flip_sign: 0 };
+  const [f, setF] = useState<Partial<Account>>(blank);
+  const [editing, setEditing] = useState<string | null>(null);
+  const load = () => api.accounts().then(setList).catch((e) => onError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+
+  const save = () =>
+    (editing ? api.updateAccount(editing, f) : api.createAccount(f))
+      .then(() => {
+        setF(blank);
+        setEditing(null);
+        load();
+      })
+      .catch((e) => onError(e.message));
+
+  return (
+    <>
+      <div className="card">
+        <h2>{editing ? 'Edit account' : 'Add an account'}</h2>
+        <div className="form-grid">
+          <label className="field">
+            Name
+            <input value={f.name ?? ''} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="FNB Cheque" />
+          </label>
+          <label className="field">
+            Bank
+            <select value={f.bank} onChange={(e) => setF({ ...f, bank: e.target.value })}>
+              <option value="fnb">FNB</option>
+              <option value="discovery">Discovery Bank</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label className="field">
+            Type
+            <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
+              <option value="cheque">Cheque / transactional</option>
+              <option value="credit">Credit card</option>
+              <option value="savings">Savings</option>
+              <option value="cash">Cash</option>
+            </select>
+          </label>
+          <label className="field">
+            Account number (match hint)
+            <input
+              value={f.match_hint ?? ''}
+              onChange={(e) => setF({ ...f, match_hint: e.target.value })}
+              placeholder="62812345678 or last 4+ digits"
+            />
+          </label>
+          <label className="row small" style={{ gap: 4 }}>
+            <input type="checkbox" checked={Boolean(f.flip_sign)} onChange={(e) => setF({ ...f, flip_sign: e.target.checked ? 1 : 0 })} />
+            Export shows purchases as positive (flip signs)
+          </label>
+        </div>
+        <div className="row" style={{ marginTop: '0.75rem' }}>
+          <button className="primary" onClick={save}>
+            {editing ? 'Save' : 'Add account'}
+          </button>
+          {editing && (
+            <button
+              onClick={() => {
+                setEditing(null);
+                setF(blank);
+              }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="card" style={{ padding: 0 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Match hint</th>
+              <th className="num">Transactions</th>
+              <th>Latest</th>
+              <th className="num">Balance</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((a) => (
+              <tr key={a.id}>
+                <td>
+                  {a.name} <span className="small muted">{a.bank} · {a.type}</span>
+                </td>
+                <td className="small">{a.match_hint ?? '—'}</td>
+                <td className="num">{a.transaction_count}</td>
+                <td className="small">{shortDate(a.last_transaction_date)}</td>
+                <td className="num">{money(a.last_balance)}</td>
+                <td className="row" style={{ justifyContent: 'flex-end' }}>
+                  <button
+                    className="link"
+                    onClick={() => {
+                      setEditing(a.id);
+                      setF(a);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="link danger"
+                    onClick={() =>
+                      confirm(`Delete ${a.name} and all ${a.transaction_count} of its transactions?`) &&
+                      api.deleteAccount(a.id).then(load).catch((e) => onError(e.message))
+                    }
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {list.length === 0 && <div className="empty">No accounts yet.</div>}
+      </div>
+    </>
+  );
+}
+
+function Categories({ onError }: { onError: (m: string) => void }) {
+  const [list, setList] = useState<Category[]>([]);
+  const [newName, setNewName] = useState('');
+  const [newKind, setNewKind] = useState('expense');
+  const load = () => api.categories().then(setList).catch((e) => onError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+
+  const patch = (c: Category, p: Partial<Category>) =>
+    api
+      .updateCategory(c.id, { ...c, ...p })
+      .then(load)
+      .catch((e) => onError(e.message));
+
+  return (
+    <>
+      <div className="card">
+        <div className="row">
+          <input placeholder="New category" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <select value={newKind} onChange={(e) => setNewKind(e.target.value)}>
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+            <option value="savings">Savings</option>
+            <option value="transfer">Transfer (not counted)</option>
+          </select>
+          <button
+            className="primary"
+            onClick={() =>
+              newName.trim() &&
+              api
+                .createCategory({ name: newName.trim(), kind: newKind as Category['kind'] })
+                .then(() => {
+                  setNewName('');
+                  load();
+                })
+                .catch((e) => onError(e.message))
+            }
+          >
+            Add
+          </button>
+        </div>
+        <p className="small muted" style={{ marginBottom: 0 }}>
+          <strong>Slip required</strong> marks the “smart” categories: a transaction in one of them stays <em>Needs slip</em> until a
+          till slip is attached, and the slip’s lines decide how it’s split (a Checkers run → Groceries + Kids + Medical).
+        </p>
+      </div>
+      <div className="card" style={{ padding: 0 }}>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Icon</th>
+                <th>Name</th>
+                <th>Kind</th>
+                <th>Slip required</th>
+                <th>Colour</th>
+                <th>Archived</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((c) => (
+                <tr key={c.id} style={{ opacity: c.archived ? 0.55 : 1 }}>
+                  <td>
+                    <input defaultValue={c.icon ?? ''} style={{ width: '3rem' }} onBlur={(e) => e.target.value !== (c.icon ?? '') && patch(c, { icon: e.target.value })} />
+                  </td>
+                  <td>
+                    <input defaultValue={c.name} onBlur={(e) => e.target.value !== c.name && patch(c, { name: e.target.value })} />
+                  </td>
+                  <td>
+                    <select value={c.kind} onChange={(e) => patch(c, { kind: e.target.value as Category['kind'] })}>
+                      <option value="expense">Expense</option>
+                      <option value="income">Income</option>
+                      <option value="savings">Savings</option>
+                      <option value="transfer">Transfer</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input type="checkbox" checked={Boolean(c.requires_slip)} onChange={(e) => patch(c, { requires_slip: e.target.checked ? 1 : 0 })} />
+                  </td>
+                  <td>
+                    <input type="color" value={c.color ?? '#898781'} onChange={(e) => patch(c, { color: e.target.value })} style={{ padding: 0, width: '2.2rem', height: '1.8rem' }} />
+                  </td>
+                  <td>
+                    <input type="checkbox" checked={Boolean(c.archived)} onChange={(e) => patch(c, { archived: e.target.checked ? 1 : 0 })} />
+                  </td>
+                  <td>
+                    <button
+                      className="link danger small"
+                      onClick={() => confirm(`Delete ${c.name}?`) && api.deleteCategory(c.id).then(load).catch((e) => onError(e.message))}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Merchants({ onError }: { onError: (m: string) => void }) {
+  const [list, setList] = useState<Merchant[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [f, setF] = useState<Partial<Merchant>>({ name: '', patterns: '', default_category_id: null });
+  const [msg, setMsg] = useState<string | null>(null);
+  const load = () => api.merchants().then(setList).catch((e) => onError(e.message));
+  useEffect(() => {
+    load();
+    api.categories().then(setCategories).catch(() => undefined);
+  }, []);
+
+  return (
+    <>
+      {msg && (
+        <div className="notice" onClick={() => setMsg(null)}>
+          {msg}
+        </div>
+      )}
+      <div className="card">
+        <h2>Add a rule</h2>
+        <p className="small muted" style={{ marginTop: 0 }}>
+          A statement line containing any pattern (separate with <code>|</code>) is assigned the merchant and its category. The
+          longest matching pattern wins. Choosing a category on the Transactions page with “Remember merchant” ticked creates these
+          for you.
+        </p>
+        <div className="form-grid">
+          <label className="field">
+            Merchant
+            <input value={f.name ?? ''} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Checkers" />
+          </label>
+          <label className="field">
+            Patterns
+            <input value={f.patterns ?? ''} onChange={(e) => setF({ ...f, patterns: e.target.value })} placeholder="CHECKERS|CHECKERS HYPER" />
+          </label>
+          <label className="field">
+            Category
+            <CategorySelect categories={categories} value={f.default_category_id ?? null} onChange={(id) => setF({ ...f, default_category_id: id })} />
+          </label>
+          <button
+            className="primary"
+            onClick={() =>
+              api
+                .createMerchant(f)
+                .then((r) => {
+                  setMsg(`Rule added — ${r.applied} uncategorised transaction(s) matched.`);
+                  setF({ name: '', patterns: '', default_category_id: null });
+                  load();
+                })
+                .catch((e) => onError(e.message))
+            }
+          >
+            Add rule
+          </button>
+        </div>
+      </div>
+      <div className="card" style={{ padding: 0 }}>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Merchant</th>
+                <th>Patterns</th>
+                <th>Category</th>
+                <th className="num">Matched</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((m) => (
+                <tr key={m.id}>
+                  <td>{m.name}</td>
+                  <td>
+                    <input
+                      defaultValue={m.patterns}
+                      onBlur={(e) =>
+                        e.target.value !== m.patterns &&
+                        api
+                          .updateMerchant(m.id, { ...m, patterns: e.target.value })
+                          .then(load)
+                          .catch((er) => onError(er.message))
+                      }
+                      style={{ width: '100%', minWidth: 180 }}
+                    />
+                  </td>
+                  <td>
+                    <CategorySelect
+                      categories={categories}
+                      value={m.default_category_id}
+                      placeholder="None"
+                      onChange={(id) =>
+                        api
+                          .updateMerchant(m.id, { ...m, default_category_id: id })
+                          .then(load)
+                          .catch((e) => onError(e.message))
+                      }
+                    />
+                  </td>
+                  <td className="num">{m.transaction_count}</td>
+                  <td>
+                    <button className="link danger small" onClick={() => api.deleteMerchant(m.id).then(load).catch((e) => onError(e.message))}>
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Keywords({ onError }: { onError: (m: string) => void }) {
+  const [list, setList] = useState<Keyword[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [kw, setKw] = useState('');
+  const [cat, setCat] = useState<string | null>(null);
+  const load = () => api.keywords().then(setList).catch((e) => onError(e.message));
+  useEffect(() => {
+    load();
+    api.categories().then(setCategories).catch(() => undefined);
+  }, []);
+  return (
+    <>
+      <div className="card">
+        <p className="small muted" style={{ marginTop: 0 }}>
+          For slip lines that aren’t in the product database yet: a line containing the keyword gets that category instead of the
+          shop’s default. Once you correct a line, the product itself remembers — keywords are just the first guess.
+        </p>
+        <div className="row">
+          <input placeholder="Keyword, e.g. HUGGIES" value={kw} onChange={(e) => setKw(e.target.value)} />
+          <CategorySelect categories={categories} value={cat} onChange={setCat} kinds={['expense', 'savings']} />
+          <button
+            className="primary"
+            onClick={() =>
+              kw &&
+              cat &&
+              api
+                .createKeyword(kw, cat)
+                .then(() => {
+                  setKw('');
+                  load();
+                })
+                .catch((e) => onError(e.message))
+            }
+          >
+            Add
+          </button>
+        </div>
+      </div>
+      <div className="card" style={{ padding: 0 }}>
+        <table>
+          <tbody>
+            {list.map((k) => (
+              <tr key={k.id}>
+                <td>
+                  <code>{k.keyword}</code>
+                </td>
+                <td>{k.category_name}</td>
+                <td>
+                  <button className="link danger small" onClick={() => api.deleteKeyword(k.id).then(load)}>
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+export default function Setup() {
+  const [params, setParams] = useSearchParams();
+  const tab = (params.get('tab') as Tab) || 'accounts';
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <>
+      <h1>Setup</h1>
+      <div className="tabs">
+        {TABS.map(([t, label]) => (
+          <button key={t} className={tab === t ? 'active' : ''} onClick={() => (setError(null), setParams({ tab: t }))}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {error && (
+        <div className="error" onClick={() => setError(null)}>
+          {error}
+        </div>
+      )}
+      {tab === 'accounts' && <Accounts onError={setError} />}
+      {tab === 'categories' && <Categories onError={setError} />}
+      {tab === 'merchants' && <Merchants onError={setError} />}
+      {tab === 'keywords' && <Keywords onError={setError} />}
+    </>
+  );
+}
