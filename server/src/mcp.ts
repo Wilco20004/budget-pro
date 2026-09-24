@@ -40,7 +40,7 @@ function buildServer(): McpServer {
         'BudgetPro is a household budget. Budget periods run payday to payday (see get_settings for the start day), ' +
         'not calendar months, so always reason in periods. Amounts are in the currency from get_settings; ' +
         'transaction amounts are negative for money out. Category kinds: expense, income, savings, transfer (transfers are ' +
-        'excluded from spending). Slip-level item data (what was actually bought) is in the product tools.',
+        'excluded from spending), loan (borrowed money in: not income; its repayment is a payment plan with loan_transaction_id). Slip-level item data (what was actually bought) is in the product tools.',
     }
   );
 
@@ -307,6 +307,7 @@ function buildServer(): McpServer {
         first_due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         match_pattern: z.string().optional(),
         notes: z.string().optional(),
+        loan_transaction_id: z.string().optional().describe('For repaying borrowed money: the transaction the money came in on'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false },
     },

@@ -284,6 +284,26 @@ due date.
 **End** a plan that's settled early or cancelled: instalments due after
 today leave the budget.
 
+### Borrowed money
+
+Money you borrow (a short-term loan paid into your account, an advance) is
+not income. Put it in a category of kind **Borrowed**. BudgetPro creates one
+called *Borrowed*, and FNB's "Short Term Loan Credit" lines go there
+automatically.
+
+- **Totals:** borrowed money isn't in Income or the savings rate. It does
+  count toward the period's **Net**, because it was cash in, and the dashboard
+  shows it on its own *Borrowed* tile.
+- **Repayment:** open the transaction and choose **Set up repayment**. Enter
+  the total to repay (including fees or interest), whether it's one payment
+  or several, and when it's due. That creates a payment plan, so the
+  repayment is added to the budget of the period it falls due (under Debt
+  repayments by default). The plan also shows what the borrowing cost you.
+  With the repayment's statement text, the actual repayment is linked
+  automatically.
+- **Reminder:** until a repayment plan exists, the dashboard reminds you
+  about the borrowed amount.
+
 ### Spending money
 
 **Setup → Spending money** gives each household member their own

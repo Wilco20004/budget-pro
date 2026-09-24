@@ -253,6 +253,12 @@ export default function PaymentPlans({
                     <div className="small muted">
                       {p.category_icon} {p.category_name} · {p.instalments} × {money(p.instalment)} {FREQ_LABEL[p.frequency]}
                     </div>
+                    {p.borrowed && (
+                      <div className="small muted">
+                        🤝 repays {money(p.borrowed.amount)} borrowed {shortDate(p.borrowed.date)}
+                        {p.borrowed.cost > 0 ? ` · costs ${money(p.borrowed.cost)}` : ''}
+                      </div>
+                    )}
                   </td>
                   <td className="small">
                     {p.paid_count} of {p.instalments} paid · {money(p.remaining)} left

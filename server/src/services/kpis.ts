@@ -70,7 +70,9 @@ export interface PeriodKpis {
     expense_actual: number;
     savings_planned: number;
     savings_actual: number;
-    /** income − expenses − savings: what's unaccounted for / left over. */
+    /** Money borrowed this period (kind 'loan'): cash in that isn't income. */
+    borrowed_actual: number;
+    /** income + borrowed − expenses − savings: what's unaccounted for / left over. */
     net: number;
     /** (income − expenses) / income: share of income not spent. */
     savings_rate: number | null;
@@ -90,6 +92,8 @@ export interface PeriodKpis {
     /** Share of slip-requiring transactions that have a slip attached. */
     slip_coverage: number | null;
   };
+  /** Borrowing this period with no repayment plan yet. */
+  borrowed_unplanned: { transaction_id: string; date: string; description: string; amount: number }[];
   categories: CategoryKpi[];
   /** Expense categories rolled up by display group, in group order;
    *  ungrouped last. */
@@ -160,14 +164,15 @@ export function periodKpis(period: Period): PeriodKpis {
   for (const c of cats) {
     if (c.kind === 'transfer') continue;
     const s = sumMap.get(c.id);
-    const fromPlans = c.kind === 'income' ? 0 : plans.get(c.id) ?? 0;
-    const fromGoals = c.kind === 'income' ? 0 : goals.get(c.id) ?? 0;
+    const moneyIn = c.kind === 'income' || c.kind === 'loan';
+    const fromPlans = moneyIn ? 0 : plans.get(c.id) ?? 0;
+    const fromGoals = moneyIn ? 0 : goals.get(c.id) ?? 0;
     if (c.archived && !s && !c.planned && !fromPlans && !fromGoals) continue;
     const signed = s?.total ?? 0;
-    const actual = r2(c.kind === 'income' ? signed : -signed);
+    const actual = r2(moneyIn ? signed : -signed);
     const planned = r2((c.planned || 0) + fromPlans + fromGoals);
     const pace = r2(planned * fraction);
-    const status = spendStatus(planned, actual, pace, fraction, c.kind === 'income');
+    const status = spendStatus(planned, actual, pace, fraction, moneyIn);
     categories.push({
       category_id: c.id,
       name: c.name,
@@ -249,6 +254,16 @@ export function periodKpis(period: Period): PeriodKpis {
   const expense_planned = sum('expense', 'planned');
   const savings_actual = sum('savings', 'actual');
   const savings_planned = sum('savings', 'planned');
+  const borrowed_actual = sum('loan', 'actual');
+  const borrowed_unplanned = db
+    .prepare(
+      `SELECT t.id AS transaction_id, t.date, t.description, t.amount FROM transactions t
+       WHERE t.date BETWEEN ? AND ? AND t.ignored = 0 AND t.amount > 0
+         AND EXISTS (SELECT 1 FROM transaction_splits s JOIN categories c ON c.id = s.category_id WHERE s.transaction_id = t.id AND c.kind = 'loan')
+         AND NOT EXISTS (SELECT 1 FROM payment_plans p WHERE p.loan_transaction_id = t.id)
+       ORDER BY t.date`
+    )
+    .all(period.start, period.end) as PeriodKpis['borrowed_unplanned'];
   const daysLeft = period.days - elapsedDays;
   const expense_remaining = r2(expense_planned - expense_actual);
 
@@ -303,7 +318,8 @@ export function periodKpis(period: Period): PeriodKpis {
       expense_actual,
       savings_planned,
       savings_actual,
-      net: r2(income_actual - expense_actual - savings_actual),
+      borrowed_actual,
+      net: r2(income_actual + borrowed_actual - expense_actual - savings_actual),
       savings_rate: income_actual > 0 ? r2(((income_actual - expense_actual) / income_actual) * 100) : null,
       expense_remaining,
       daily_allowance: daysLeft > 0 ? r2(expense_remaining / daysLeft) : null,
@@ -318,6 +334,7 @@ export function periodKpis(period: Period): PeriodKpis {
       uncategorized_amount: r2(unassigned.rest),
       slip_coverage: slipTotal.n ? r2((slipTotal.with_slip / slipTotal.n) * 100) : null,
     },
+    borrowed_unplanned,
     categories,
     groups,
   };
@@ -344,7 +361,7 @@ export function trend(count: number, anchor?: Period): TrendPoint[] {
       savings: k.totals.savings_actual,
       net: k.totals.net,
       categories: k.categories
-        .filter((c) => c.kind !== 'income')
+        .filter((c) => c.kind !== 'income' && c.kind !== 'loan')
         .map((c) => ({ category_id: c.category_id, name: c.name, parent_id: c.parent_id, planned: c.planned, actual: c.actual })),
     };
   });

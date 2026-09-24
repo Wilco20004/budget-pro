@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.18.0 — 2026-09-24
+
+- **Borrowed money**: a new category kind (a *Borrowed* category is
+  created) for loan money coming in. It's not counted as income, is shown
+  on its own dashboard tile and counts toward Net. **Set up repayment** on
+  the transaction creates a payment plan that puts the repayment in the
+  budget of the period it's due, and shows what the borrowing cost. The
+  dashboard flags borrowing that has no repayment plan. FNB "Short Term Loan
+  Credit" lines are recognised automatically.
+- Fix: the built-in BP, Pick n Pay, Woolworths and MTN rules matched inside
+  other words ("Abp …" was filed as fuel). They now match whole words only.
+
 ## 1.17.1 — 2026-09-24
 
 - Fix: since 1.16.0, when a period had uncategorised spending, the

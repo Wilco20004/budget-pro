@@ -8,6 +8,7 @@ import SplitEditor from '../components/SplitEditor';
 import { money, NO_SLIP_LABEL, shortDate, STATUS_ICON, STATUS_LABEL, todayIso } from '../format';
 import { Account, Category, NoSlipReason, PaymentPlan, SavingsGoal, Transaction } from '../types';
 import SavingsAllocate from '../components/SavingsAllocate';
+import SetupRepayment from '../components/SetupRepayment';
 import ConfirmButton from '../components/ConfirmButton';
 
 const STATUSES = ['all', 'uncategorized', 'needs_slip', 'reconciled', 'ignored'] as const;
@@ -91,6 +92,9 @@ function Detail({
           </>
         )}
       </div>
+      {tx.amount > 0 && tx.splits.some((s) => categories.find((c) => c.id === s.category_id)?.kind === 'loan') && (
+        <SetupRepayment tx={tx} categories={categories} plans={plans} onSaved={onChanged} />
+      )}
       {(savingsLike || goals.some((g) => g.account_id === tx.account_id)) && <SavingsAllocate tx={tx} goals={goals} onSaved={onChanged} />}
       {tx.amount < 0 && (tx.payment_plan_id || linkable.length > 0) && (
         <div className="row">
@@ -247,6 +251,8 @@ export default function Transactions() {
   const load = () => {
     if (!selected) return;
     setLoading(true);
+    // Plans too: setting up a repayment adds one.
+    api.paymentPlans().then(setPlans).catch(() => undefined);
     api
       .transactions({
         // A plan's payments span periods, so its filter shows them all.

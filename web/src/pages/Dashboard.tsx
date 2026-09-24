@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import TrendChart from '../components/TrendChart';
-import { money } from '../format';
+import { money, shortDate } from '../format';
 import { CategoryKpi, GroupKpi, PeriodKpis, SavingsOverview, TrendPoint } from '../types';
 
 /** A group's subtotal bar, followed by its categories. */
@@ -193,8 +193,17 @@ export default function Dashboard() {
               <div className="value" style={{ color: t.net < 0 ? 'var(--critical-text)' : 'var(--good-text)' }}>
                 {money(t.net, { whole: true, signed: true })}
               </div>
-              <div className="sub">income − spending − savings</div>
+              <div className="sub">income {t.borrowed_actual > 0 ? '+ borrowed ' : ''}− spending − savings</div>
             </div>
+            {t.borrowed_actual > 0 && (
+              <div className="tile">
+                <div className="label">Borrowed</div>
+                <div className="value" style={{ color: 'var(--warning-text)' }}>
+                  {money(t.borrowed_actual, { whole: true })}
+                </div>
+                <div className="sub">not income — to be repaid</div>
+              </div>
+            )}
             <div className="tile">
               <div className="label">Reconciled</div>
               <div className="value">
@@ -259,6 +268,19 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {k.borrowed_unplanned.length > 0 && (
+            <div className="notice">
+              🤝 {k.borrowed_unplanned.length === 1 ? 'Borrowed money has' : `${k.borrowed_unplanned.length} amounts borrowed have`} no repayment plan yet:{' '}
+              {k.borrowed_unplanned.map((b, i) => (
+                <span key={b.transaction_id}>
+                  {i > 0 && ', '}
+                  {money(b.amount)} on {shortDate(b.date)}
+                </span>
+              ))}
+              . Open it in <Link to={`/transactions?category=${k.categories.find((c) => c.kind === 'loan')?.category_id ?? ''}`}>Transactions</Link> and choose <em>Set up repayment</em> so the repayment is in the budget.
             </div>
           )}
 

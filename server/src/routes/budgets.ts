@@ -25,7 +25,7 @@ budgetsRouter.get(
                 b.amount AS override, c.group_id, g.name AS group_name
          FROM categories c LEFT JOIN budget_lines b ON b.category_id = c.id AND b.period_start = ?
          LEFT JOIN category_groups g ON g.id = c.group_id
-         WHERE c.archived = 0 AND c.kind != 'transfer'
+         WHERE c.archived = 0 AND c.kind NOT IN ('transfer', 'loan')
          ORDER BY COALESCE(g.sort_order, 999999),
                   -- a subcategory sorts right after its parent
                   COALESCE((SELECT p.sort_order FROM categories p WHERE p.id = c.parent_id), c.sort_order),

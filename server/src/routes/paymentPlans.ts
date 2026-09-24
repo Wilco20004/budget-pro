@@ -28,6 +28,11 @@ export function planInput(body: Record<string, unknown>) {
   const ended_on = str(body.ended_on);
   if (ended_on && !DATE.test(ended_on)) throw new Error('ended_on must be YYYY-MM-DD');
   const pattern = str(body.match_pattern);
+  // The borrowed-money transaction this plan pays back, if any.
+  const loan_transaction_id = str(body.loan_transaction_id);
+  if (loan_transaction_id && !db.prepare('SELECT 1 FROM transactions WHERE id = ?').get(loan_transaction_id)) {
+    throw new Error('Borrowed-money transaction not found');
+  }
   return {
     name,
     category_id,
@@ -38,6 +43,7 @@ export function planInput(body: Record<string, unknown>) {
     match_pattern: pattern ? pattern.toUpperCase() : null,
     notes: str(body.notes),
     ended_on,
+    loan_transaction_id,
   };
 }
 
@@ -46,9 +52,9 @@ export function createPlan(body: Record<string, unknown>) {
   const id = uuid();
   const t = now();
   db.prepare(
-    `INSERT INTO payment_plans (id, name, category_id, instalment, instalments, frequency, first_due, match_pattern, notes, ended_on, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, p.name, p.category_id, p.instalment, p.instalments, p.frequency, p.first_due, p.match_pattern, p.notes, p.ended_on, t, t);
+    `INSERT INTO payment_plans (id, name, category_id, instalment, instalments, frequency, first_due, match_pattern, notes, ended_on, loan_transaction_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, p.name, p.category_id, p.instalment, p.instalments, p.frequency, p.first_due, p.match_pattern, p.notes, p.ended_on, p.loan_transaction_id, t, t);
   // Instalments already on imported statements get linked straight away.
   linkPaymentPlans();
   publishSensors().catch(() => undefined);
@@ -85,9 +91,9 @@ paymentPlansRouter.put(
     if (!getPlan(id)) notFound('Payment plan not found');
     const p = planInput(req.body ?? {});
     db.prepare(
-      `UPDATE payment_plans SET name = ?, category_id = ?, instalment = ?, instalments = ?, frequency = ?, first_due = ?, match_pattern = ?, notes = ?, ended_on = ?, updated_at = ?
+      `UPDATE payment_plans SET name = ?, category_id = ?, instalment = ?, instalments = ?, frequency = ?, first_due = ?, match_pattern = ?, notes = ?, ended_on = ?, loan_transaction_id = ?, updated_at = ?
        WHERE id = ?`
-    ).run(p.name, p.category_id, p.instalment, p.instalments, p.frequency, p.first_due, p.match_pattern, p.notes, p.ended_on, now(), id);
+    ).run(p.name, p.category_id, p.instalment, p.instalments, p.frequency, p.first_due, p.match_pattern, p.notes, p.ended_on, p.loan_transaction_id, now(), id);
     linkPaymentPlans();
     publishSensors().catch(() => undefined);
     res.json(describePlan(getPlan(id)!));

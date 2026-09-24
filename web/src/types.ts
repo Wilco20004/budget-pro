@@ -5,7 +5,7 @@ export interface Period {
   days: number;
 }
 
-export type CategoryKind = 'expense' | 'income' | 'savings' | 'transfer';
+export type CategoryKind = 'expense' | 'income' | 'savings' | 'transfer' | 'loan';
 
 export interface Category {
   id: string;
@@ -151,6 +151,8 @@ export interface PeriodKpis {
     expense_actual: number;
     savings_planned: number;
     savings_actual: number;
+    /** Borrowed this period: cash in that isn't income. */
+    borrowed_actual: number;
     net: number;
     savings_rate: number | null;
     expense_remaining: number;
@@ -166,6 +168,7 @@ export interface PeriodKpis {
     uncategorized_amount: number;
     slip_coverage: number | null;
   };
+  borrowed_unplanned: { transaction_id: string; date: string; description: string; amount: number }[];
   categories: CategoryKpi[];
   groups: GroupKpi[];
 }
@@ -268,6 +271,8 @@ export interface PaymentPlan {
   match_pattern: string | null;
   notes: string | null;
   ended_on: string | null;
+  loan_transaction_id: string | null;
+  borrowed: { date: string; description: string; amount: number; cost: number } | null;
   total: number;
   schedule: string[];
   last_due: string | null;

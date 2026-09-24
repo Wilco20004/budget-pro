@@ -51,6 +51,7 @@ db.exec(`
   --   savings  — money set aside; counts as "planned outflow" but reported
   --              separately so a big savings transfer doesn't look like overspend
   --   transfer — moving money between your own accounts; excluded entirely
+  --   loan     — borrowed money in (1.18.0): not income, has to be repaid
   -- requires_slip = a transaction in this category isn't reconciled until a
   -- receipt is attached (the "smart" categories — groceries, medical, ...).
   CREATE TABLE IF NOT EXISTS categories (
@@ -542,3 +543,43 @@ applySeed('fnb_1', [
   ['FNB personal loan', 'FNB PLOAN', 'Debt repayments'],
   ['FNB interest charged', 'INT ON DEBIT BALANCE|ADJUST OF DR INTEREST', 'Bank fees'],
 ]);
+
+// 1.18.0: a few seeded merchant patterns ended in a space but didn't start
+// with one, so "BP " matched inside "Abp …" (an FNB loan repayment was
+// filed as fuel). Patterns are matched against " DESCRIPTION ", so a leading
+// space makes them whole words. Only the untouched seeded values change.
+(function fixSeedPatterns() {
+  const fix = db.prepare('UPDATE merchants SET patterns = ? WHERE patterns = ?');
+  for (const [from, to] of [
+    ['BP ', ' BP '],
+    ['PICK N PAY|PNP ', 'PICK N PAY| PNP '],
+    ['WOOLWORTHS|WW ', 'WOOLWORTHS| WW '],
+    ['MTN ', ' MTN '],
+  ]) fix.run(to, from);
+})();
+
+// 1.18.0: borrowed money. A category of kind 'loan' holds money in that has
+// to be paid back (a short-term loan, an overdraft top-up): not income, but
+// cash that funds the period. Its repayment is a payment plan, linked to the
+// transaction that brought the money in.
+if (!hasColumn('payment_plans', 'loan_transaction_id')) {
+  db.exec('ALTER TABLE payment_plans ADD COLUMN loan_transaction_id TEXT REFERENCES transactions(id) ON DELETE SET NULL');
+}
+(function seedBorrowed() {
+  const key = 'seed_borrowed_1';
+  if (db.prepare('SELECT 1 FROM settings WHERE key = ?').get(key)) return;
+  const t = now();
+  db.transaction(() => {
+    let cat = db.prepare("SELECT id FROM categories WHERE kind = 'loan' LIMIT 1").get() as { id: string } | undefined;
+    if (!cat && !db.prepare("SELECT 1 FROM categories WHERE name = 'Borrowed'").get()) {
+      cat = { id: uuid() };
+      const order = ((db.prepare('SELECT MAX(sort_order) AS m FROM categories').get() as { m: number | null }).m ?? 0) + 1;
+      db.prepare(
+        `INSERT INTO categories (id, name, kind, color, icon, requires_slip, default_budget, sort_order, created_at, updated_at)
+         VALUES (?, 'Borrowed', 'loan', '#c98500', '🤝', 0, 0, ?, ?, ?)`
+      ).run(cat.id, order, t, t);
+    }
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, t);
+  })();
+})();
+applySeed('fnb_2', [['FNB short-term loan', 'SHORT TERM LOAN CREDIT', 'Borrowed']]);

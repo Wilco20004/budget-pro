@@ -25,6 +25,7 @@ export interface PlanRow {
   match_pattern: string | null;
   notes: string | null;
   ended_on: string | null;
+  loan_transaction_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -76,6 +77,11 @@ export function describePlan(p: PlanRow, period?: Period) {
   const cat = db.prepare('SELECT name, icon FROM categories WHERE id = ?').get(p.category_id) as { name: string; icon: string | null } | undefined;
   const today = todayIso();
   const total = r2(p.instalment * p.instalments);
+  const loan = p.loan_transaction_id
+    ? (db.prepare('SELECT date, description, amount FROM transactions WHERE id = ?').get(p.loan_transaction_id) as
+        | { date: string; description: string; amount: number }
+        | undefined)
+    : undefined;
   const status = p.ended_on
     ? 'ended'
     : paid.n >= p.instalments || paid.total >= total - 0.5
@@ -85,6 +91,8 @@ export function describePlan(p: PlanRow, period?: Period) {
         : 'active';
   return {
     ...p,
+    /** The money borrowed that this plan repays, and what borrowing it costs. */
+    borrowed: loan ? { date: loan.date, description: loan.description, amount: loan.amount, cost: r2(total - loan.amount) } : null,
     category_name: cat?.name ?? null,
     category_icon: cat?.icon ?? null,
     total,

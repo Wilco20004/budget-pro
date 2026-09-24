@@ -281,6 +281,7 @@ function Categories({ onError }: { onError: (m: string) => void }) {
             <option value="income">Income</option>
             <option value="savings">Savings</option>
             <option value="transfer">Transfer (not counted)</option>
+            <option value="loan">Borrowed (loan money in)</option>
           </select>
           <button
             className="primary"
@@ -377,6 +378,7 @@ function Categories({ onError }: { onError: (m: string) => void }) {
                       <option value="income">Income</option>
                       <option value="savings">Savings</option>
                       <option value="transfer">Transfer</option>
+                      <option value="loan">Borrowed</option>
                     </select>
                   </td>
                   <td>

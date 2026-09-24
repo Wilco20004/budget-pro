@@ -148,7 +148,7 @@ function categoryInput(body: Record<string, unknown>) {
   const name = str(body.name);
   if (!name) throw new Error('Name is required');
   const kind = str(body.kind) ?? 'expense';
-  if (!['expense', 'income', 'savings', 'transfer'].includes(kind)) throw new Error('Invalid kind');
+  if (!['expense', 'income', 'savings', 'transfer', 'loan'].includes(kind)) throw new Error('Invalid kind');
   return {
     name,
     kind,

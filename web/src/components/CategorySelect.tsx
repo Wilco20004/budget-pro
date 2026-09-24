@@ -5,6 +5,7 @@ const KIND_LABEL: Record<string, string> = {
   income: 'Income',
   savings: 'Savings',
   transfer: 'Transfers (not counted)',
+  loan: 'Borrowed (not income)',
 };
 
 /** Categories in picker order: each subcategory right under its parent. */
@@ -29,7 +30,7 @@ export default function CategorySelect({
   allowEmpty?: boolean;
   kinds?: string[];
 }) {
-  const groups = ['expense', 'income', 'savings', 'transfer'].filter((k) => !kinds || kinds.includes(k));
+  const groups = ['expense', 'income', 'savings', 'transfer', 'loan'].filter((k) => !kinds || kinds.includes(k));
   return (
     <select value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
       {allowEmpty && <option value="">{placeholder}</option>}
