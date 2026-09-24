@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
+import { replaceProvisional } from '../notifications/service';
 import { matchUnlinkedReceipts } from '../receipts/service';
 import { autoCategorize } from '../services/categorize';
 import { parseStatement } from './parse';
@@ -14,6 +15,7 @@ export interface ImportResult {
   duplicate_count: number;
   auto_categorized: number;
   receipts_linked: number;
+  provisional_replaced: number;
   warnings: string[];
 }
 
@@ -36,18 +38,21 @@ export function accountForHints(hints: string[]): string | null {
   const accounts = db.prepare('SELECT id, match_hint, flip_sign FROM accounts').all() as AccountRow[];
   for (const a of accounts) {
     const h = (a.match_hint ?? '').replace(/\D/g, '');
-    if (h.length >= 4 && hints.some((x) => x.includes(h) || h.includes(x))) return a.id;
+    // hint "8901" matches file number "12345678901"; the reverse (a short
+    // number found in the file matching inside a full hint) needs 6+ digits
+    // so a stray "…5555" can't claim the wrong account.
+    if (h.length >= 4 && hints.some((x) => x.endsWith(h) || x === h || (x.length >= 6 && h.endsWith(x)))) return a.id;
   }
   return null;
 }
 
-export function importStatement(
+export async function importStatement(
   accountId: string | null,
   filename: string,
   buf: Buffer,
   source: 'upload' | 'inbox' | 'api' = 'upload'
-): ImportResult {
-  const parsed = parseStatement(filename, buf);
+): Promise<ImportResult> {
+  const parsed = await parseStatement(filename, buf);
   const resolved = accountId || accountForHints(parsed.accountHints);
   if (!resolved) {
     throw new Error(
@@ -105,10 +110,14 @@ export function importStatement(
     );
   })();
 
+  // Statement lines take over the provisional ones made from phone
+  // notifications (keeping their categories/slips) before rules run.
+  const provisionalReplaced = replaceProvisional(newIds);
   const auto = autoCategorize(newIds);
   const receiptsLinked = newIds.length ? matchUnlinkedReceipts() : 0;
   return {
     receipts_linked: receiptsLinked,
+    provisional_replaced: provisionalReplaced,
     import_id: importId,
     account_id: account.id,
     format: parsed.format,

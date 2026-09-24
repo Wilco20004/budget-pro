@@ -188,6 +188,42 @@ db.exec(`
   );
 `);
 
+// ---- Migrations for databases created by an older version --------------------
+
+function hasColumn(table: string, column: string): boolean {
+  return (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === column);
+}
+
+// 1.2.0: products are identified by barcode (GTIN) when the slip prints one —
+// OCR garbles names far more than the digit-only barcode line.
+if (!hasColumn('products', 'barcode')) db.exec('ALTER TABLE products ADD COLUMN barcode TEXT');
+if (!hasColumn('receipt_items', 'barcode')) db.exec('ALTER TABLE receipt_items ADD COLUMN barcode TEXT');
+db.exec('CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)');
+
+// 1.3.0: transactions created from a bank's phone notification are
+// provisional — the real statement line replaces them when it's imported.
+if (!hasColumn('transactions', 'provisional')) {
+  db.exec('ALTER TABLE transactions ADD COLUMN provisional INTEGER NOT NULL DEFAULT 0');
+}
+
+// Every notification Home Assistant forwards, and what became of it. Text
+// is only kept for notifications that looked like they came from a bank —
+// a stray WhatsApp message is logged as "not a bank notification" and its
+// content discarded.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    received_at TEXT NOT NULL,
+    package TEXT,
+    title TEXT,
+    text TEXT,
+    status TEXT NOT NULL,
+    reason TEXT,
+    transaction_id TEXT REFERENCES transactions(id) ON DELETE SET NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_notifications_received ON notifications(received_at);
+`);
+
 // ---- Seed a sensible starting point on a brand-new database ----------------
 
 const categoryCount = (db.prepare('SELECT COUNT(*) AS n FROM categories').get() as { n: number }).n;
@@ -278,3 +314,33 @@ if (categoryCount === 0) {
     insertKeyword.run(uuid(), kw, ids[cat]);
   }
 }
+
+// ---- Versioned seed additions ------------------------------------------------
+// Rules added after 1.0.0, applied once per database (new or existing) and
+// recorded in settings, so a rule the user deletes doesn't come back.
+
+function applySeed(version: string, merchants: [string, string, string][]) {
+  const key = `seed_${version}`;
+  if (db.prepare('SELECT 1 FROM settings WHERE key = ?').get(key)) return;
+  const t = now();
+  const catId = (name: string) =>
+    (db.prepare('SELECT id FROM categories WHERE name = ?').get(name) as { id: string } | undefined)?.id ?? null;
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO merchants (id, name, patterns, default_category_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+  );
+  db.transaction(() => {
+    for (const [name, patterns, cat] of merchants) insert.run(uuid(), name, patterns, catId(cat), t, t);
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, t);
+  })();
+}
+
+applySeed('discovery_1', [
+  // Moving money between your own accounts — excluded from spending.
+  ['Own account transfer', 'INTER ACCOUNT TRANSFER', 'Transfers'],
+  ['Discovery fees', 'MONTHLY FACILITY FEE|INTL PAYMENT FEE|DECLINED FEE|DECLINED DOM CARD|VITALITY MONEY', 'Bank fees'],
+  ['Interest earned', 'INTEREST EARNED|DYNAMIC INTEREST BOOST', 'Other income'],
+  ['Vitality Miles cash', 'MILES TRANSFER TO CASH', 'Other income'],
+  ['Home loan', 'HOMEL|HOME LOAN|HOMELOAN', 'Bond / Rent'],
+  ['Medical aid', 'KEYHEALTH|DISCOVERY HEALTH|MOMENTUM HEALTH|BONITAS|MEDSHIELD|FEDHEALTH', 'Insurance'],
+  ['Life cover', 'DISCLIFE|OLD MUTUAL|SANLAM|LIBERTY LIFE', 'Insurance'],
+]);

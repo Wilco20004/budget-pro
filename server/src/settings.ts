@@ -1,6 +1,7 @@
 import fs from 'fs';
 import crypto from 'crypto';
-import { db } from './db';
+import path from 'path';
+import { DATA_DIR, db } from './db';
 
 // Home Assistant Supervisor writes the add-on's current config options to
 // /data/options.json before starting the container. Those are the things
@@ -32,7 +33,11 @@ export function getAiModel(): string {
 }
 
 export function getInboxDir(): string {
-  return readOptions().inbox_dir || process.env.BUDGETPRO_INBOX_DIR || '/share/budgetpro/inbox';
+  const configured = readOptions().inbox_dir || process.env.BUDGETPRO_INBOX_DIR;
+  if (configured) return configured;
+  // /share only exists under Home Assistant; running locally, keep the
+  // inbox next to the database instead of creating C:\share.
+  return process.env.SUPERVISOR_TOKEN ? '/share/budgetpro/inbox' : path.join(DATA_DIR, 'inbox');
 }
 
 export type WeekendRule = 'none' | 'previous_business_day' | 'next_business_day';

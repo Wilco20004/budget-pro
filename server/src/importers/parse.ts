@@ -213,16 +213,26 @@ export function parseOfxStatement(text: string): ParsedStatement {
   return { format: 'ofx', rows, accountHints, warnings: [] };
 }
 
-export function parseStatement(filename: string, buf: Buffer): ParsedStatement {
-  const text = buf.toString('utf-8');
+export async function parseStatement(filename: string, buf: Buffer): Promise<ParsedStatement> {
   const lower = filename.toLowerCase();
+  if (lower.endsWith('.pdf') || buf.subarray(0, 5).toString('latin1') === '%PDF-') {
+    // Lazy imports: pdf.js is only loaded when a PDF actually arrives.
+    const { pdfText } = await import('../receipts/engines.js');
+    const { isDiscoveryStatement, parseDiscoveryStatement } = await import('./discoveryPdf.js');
+    let text: string;
+    try {
+      text = await pdfText(buf);
+    } catch (e) {
+      throw new Error(
+        `Couldn't read that PDF (${(e as Error).message}). If it's password-protected, open it and "Print → Save as PDF" to save an unlocked copy.`
+      );
+    }
+    if (isDiscoveryStatement(text)) return parseDiscoveryStatement(text, filename);
+    throw new Error('Only Discovery Bank PDF statements can be read so far — for other banks, download the CSV instead.');
+  }
+  const text = buf.toString('utf-8');
   if (lower.endsWith('.ofx') || lower.endsWith('.qfx') || /<OFX>/i.test(text.slice(0, 2000))) {
     return parseOfxStatement(text);
-  }
-  if (lower.endsWith('.pdf')) {
-    throw new Error(
-      'PDF statements are not supported yet — download the CSV (FNB: Transaction History → Download → CSV; Discovery: Statements → export CSV) instead.'
-    );
   }
   return parseCsvStatement(text);
 }

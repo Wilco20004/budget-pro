@@ -1,5 +1,50 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.3.0 — 2026-09-24
+
+- **Phone notifications**: Discovery Bank card payments and transfers
+  arrive from the Android Companion app's notification sensor as
+  provisional transactions, and are replaced by the statement line on import
+  (keeping categories, slips and notes). Only accounts set up in BudgetPro
+  are used; other accounts' notifications are ignored and their text not
+  kept. Declines are ignored. Import → Phone notifications has the Home
+  Assistant YAML and a log of what arrived.
+- **`log_receipt` MCP tool**: Claude Desktop / Claude Code can read slip
+  photos and log them — lines, barcodes and categories — using your Claude
+  plan instead of an API key. The slip is matched to its transaction and
+  split as usual.
+
+## 1.2.0 — 2026-09-24
+
+- Products are now recognised by **barcode** when the slip prints one
+  (Checkers/Shoprite `Item/GTIN` lines), so the same product on the next
+  slip is found even when OCR garbles its name.
+- Small slip images (e.g. e-slip screenshots) are upscaled before OCR, which
+  makes totals readable where they weren't.
+- The slip reader skips "Electronic Payment" and VAT-summary rows, reads
+  "4 @ R3.89" as a quantity, uses "APPROVED AMOUNT" when there's no TOTAL
+  line, and prefers the date in the slip's "Date Time Store" row.
+- The Claude slip reader now also returns each line's barcode.
+
+## 1.1.0 — 2026-09-24
+
+- **Discovery Bank PDF statements** can now be imported directly, both
+  transaction account and credit card, by upload or via the inbox folder.
+  Each statement is checked against its own opening and closing balance,
+  and a warning is shown if anything doesn't add up. Handles both
+  `R1,234.56` and older `R1 234.56` amounts, and details that wrap onto
+  a second line.
+- The running balance is filled in from the statement, so account balances
+  show on Setup → Accounts.
+- New built-in rules: transfers between your own accounts (→ Transfers,
+  excluded from spending), Discovery fees, interest earned, Vitality Miles
+  cash, home loans, medical aid and life cover. Added once to existing
+  databases, too.
+- Fix: an account number seen inside a statement (e.g. a transfer to
+  "account...5555") could match the wrong account's hint.
+- Running outside Home Assistant, the inbox folder now defaults to
+  `data/inbox` instead of `/share`.
+
 ## 1.0.0 — 2026-09-24
 
 - First release.

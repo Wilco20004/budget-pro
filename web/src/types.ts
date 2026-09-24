@@ -75,6 +75,8 @@ export interface Transaction {
   ignored: number;
   status: TxStatus;
   receipt_id?: string | null;
+  /** 1 = made from a phone notification; replaced when the statement arrives. */
+  provisional?: number;
   splits: Split[];
 }
 
@@ -168,6 +170,7 @@ export interface ImportResult {
   duplicate_count: number;
   auto_categorized: number;
   receipts_linked: number;
+  provisional_replaced: number;
   warnings: string[];
 }
 
@@ -196,6 +199,7 @@ export interface ReceiptItem {
   category_id: string | null;
   category_name: string | null;
   product_id: string | null;
+  barcode: string | null;
 }
 
 export interface TxCandidate {
@@ -246,4 +250,19 @@ export interface Settings {
   claude_available: boolean;
   ai_model: string;
   inbox: { dir: string; exists: boolean; recent: { at: string; file: string; ok: boolean; message: string }[] };
+  internal_url: string | null;
+}
+
+export interface NotificationLog {
+  id: string;
+  received_at: string;
+  package: string | null;
+  title: string | null;
+  text: string | null;
+  status: 'imported' | 'ignored' | 'duplicate' | 'unparsed' | 'not_bank';
+  reason: string | null;
+  transaction_id: string | null;
+  transaction_description: string | null;
+  transaction_amount: number | null;
+  provisional: number | null;
 }

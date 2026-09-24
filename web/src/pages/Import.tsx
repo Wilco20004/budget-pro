@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { usePeriod } from '../components/PeriodContext';
+import PhoneNotifications from '../components/PhoneNotifications';
 import { shortDate } from '../format';
 import { Account, ImportRecord, ImportResult, Settings } from '../types';
 
@@ -58,9 +59,10 @@ export default function Import() {
       <div className="card">
         <h2>Upload a statement</h2>
         <p className="small muted" style={{ marginTop: 0 }}>
-          CSV or OFX. <strong>FNB:</strong> Online Banking → account → Transaction History → Download → CSV.{' '}
-          <strong>Discovery Bank:</strong> app or web → account → Statements / Transactions → export CSV. Re-importing an
-          overlapping statement is safe — transactions already imported are skipped.
+          <strong>Discovery Bank:</strong> the monthly PDF statements as they are (transaction account and credit card) — each
+          is checked against its opening and closing balance. <strong>FNB:</strong> Online Banking → account → Transaction
+          History → Download → CSV. OFX works too. Re-importing an overlapping statement is safe — transactions already
+          imported are skipped.
         </p>
         <div className="row">
           <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
@@ -71,7 +73,7 @@ export default function Import() {
               </option>
             ))}
           </select>
-          <input ref={fileRef} type="file" accept=".csv,.ofx,.qfx,.txt" multiple hidden onChange={(e) => upload(e.target.files)} />
+          <input ref={fileRef} type="file" accept=".pdf,.csv,.ofx,.qfx,.txt" multiple hidden onChange={(e) => upload(e.target.files)} />
           <button className="primary" onClick={() => fileRef.current?.click()} disabled={busy || accounts.length === 0}>
             {busy ? 'Importing…' : 'Choose file(s)'}
           </button>
@@ -80,7 +82,8 @@ export default function Import() {
           <div className="notice" key={r.filename} style={{ marginTop: '0.75rem', marginBottom: 0 }}>
             <strong>{r.filename}</strong>: {r.new_count} new transaction{r.new_count === 1 ? '' : 's'}
             {r.duplicate_count ? `, ${r.duplicate_count} already imported` : ''}, {r.auto_categorized} categorised automatically
-            {r.receipts_linked ? `, ${r.receipts_linked} slip(s) matched` : ''}.{' '}
+            {r.receipts_linked ? `, ${r.receipts_linked} slip(s) matched` : ''}
+            {r.provisional_replaced ? `, ${r.provisional_replaced} phone-notification transaction(s) confirmed` : ''}.{' '}
             <Link to="/transactions?status=uncategorized">Reconcile →</Link>
             {r.warnings.map((w) => (
               <div key={w} className="small" style={{ color: 'var(--warning-text)' }}>
@@ -123,6 +126,8 @@ export default function Import() {
           </table>
         )}
       </div>
+
+      <PhoneNotifications settings={settings} />
 
       <div className="card">
         <h2>Import history</h2>

@@ -22,9 +22,15 @@ the dashboard, in Home Assistant sensors, and available to AI through MCP.
 
 ## Getting statements in
 
-**Upload** — Import → Choose file. CSV or OFX.
+**Upload** — Import → Choose file.
+- Discovery Bank: the monthly **PDF statements**, as downloaded (transaction
+  account and credit card). Every PDF is checked: opening balance plus all
+  transactions must equal the closing balance, otherwise the import shows a
+  warning. The account is recognised from the account number on the
+  statement. Password-protected PDFs need an unlocked copy first
+  ("Print → Save as PDF").
 - FNB: Online Banking → the account → Transaction History → Download → CSV.
-- Discovery Bank: the account → Statements / Transactions → export CSV.
+- Any bank: CSV or OFX.
 
 Columns are detected from the header row (date, description, amount — or
 separate debit/credit columns — and balance), with SA formats handled
@@ -40,7 +46,7 @@ that account.
 `/share/budgetpro/inbox` is imported within a minute:
 
 ```
-/share/budgetpro/inbox/            statements, matched by the account number inside the file
+/share/budgetpro/inbox/            statements (PDF/CSV/OFX), matched by the account number inside the file
 /share/budgetpro/inbox/FNB Cheque/ statements for that account (folder = account name or match hint)
 /share/budgetpro/inbox/receipts/   slip photos and PDF e-slips
 ```
@@ -49,6 +55,21 @@ Processed files move to `processed/`; files that failed go to `failed/`
 with a `.error.txt` explaining why. Reach the folder with the Samba share
 add-on, a phone folder-sync app, or an automation that saves statement
 e-mail attachments there.
+
+**Phone notifications (Android, Discovery Bank)** — for day-to-day figures
+between statements. The Home Assistant Companion app's *Last notification*
+sensor passes each banking notification to BudgetPro (Import → Phone
+notifications → Set up has the YAML to paste). Card payments and transfers
+appear immediately as **📱 provisional** transactions; when the statement
+is imported, each statement line takes over its provisional twin (same
+account and amount, within a few days), keeping any category, slip or note
+you added. Rules:
+
+- Only accounts set up in BudgetPro are used — a notification for any other
+  account (e.g. a business account) is ignored and its text is not kept.
+- Declined payments ("Insufficient funds") are ignored.
+- Anything else that isn't a recognised bank notification is logged as
+  "not a bank" with its content discarded.
 
 ### Why no bank login scraping?
 
@@ -97,6 +118,15 @@ e-slips in the inbox. BudgetPro then:
 Correct a line's category and press **Save** — the product remembers, and
 the transaction's split updates. **Product database** shows everything
 you've bought with times bought, last and average price.
+
+### Logging slips with your Claude subscription
+
+With Claude Desktop (or Claude Code) connected to BudgetPro's MCP endpoint
+(see *API and MCP*), attach slip photos and ask Claude to "log these slips
+in BudgetPro". Claude reads them and calls the `log_receipt` tool; BudgetPro
+categorises the lines, matches the bank transaction and splits it exactly as
+for scanned slips. This uses your Claude plan, not an API key. No image is
+stored for slips logged this way.
 
 ### Slip reading
 
@@ -155,7 +185,7 @@ claude mcp add --transport http budgetpro http://<ha-ip>:8097/mcp --header "Auth
 MCP tools: `get_settings`, `list_periods`, `get_period_summary`,
 `get_trend`, `list_categories`, `search_transactions`,
 `spending_by_merchant`, `search_products`, `product_price_history`,
-`categorize_transaction`.
+`categorize_transaction`, `log_receipt`.
 
 Main REST endpoints: `GET /api/kpis?period=YYYY-MM-DD`,
 `GET /api/kpis/trend?count=6`, `GET /api/transactions?period=&status=&category_id=&q=`,

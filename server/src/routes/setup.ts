@@ -1,3 +1,4 @@
+import os from 'os';
 import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
@@ -24,6 +25,10 @@ settingsRouter.get(
       claude_available: claudeAvailable(),
       ai_model: getAiModel(),
       inbox: inboxStatus(),
+      // How Home Assistant itself reaches this add-on (for the notification
+      // automation): add-on containers are addressable by their hostname on
+      // the Supervisor network. Unknown when running outside HA.
+      internal_url: homeAssistantAvailable() ? `http://${os.hostname()}:8097` : null,
     });
   })
 );

@@ -326,6 +326,11 @@ export default function Transactions() {
                     <td className={`num ${t.amount > 0 ? 'pos' : 'neg'}`}>{money(t.amount, { signed: true })}</td>
                     <td>
                       <StatusChip status={t.status} />
+                      {t.provisional ? (
+                        <div className="small muted" title="From a phone notification — replaced by the statement line when you import it">
+                          📱 provisional
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                   {expanded === t.id && (

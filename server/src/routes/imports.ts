@@ -29,9 +29,9 @@ importsRouter.get(
 importsRouter.post(
   '/',
   upload.single('file'),
-  h((req, res) => {
+  h(async (req, res) => {
     if (!req.file) throw new Error('No file uploaded');
-    const result = importStatement(str(req.body?.account_id), req.file.originalname, req.file.buffer, 'upload');
+    const result = await importStatement(str(req.body?.account_id), req.file.originalname, req.file.buffer, 'upload');
     publishSensors().catch(() => undefined);
     res.status(201).json(result);
   })

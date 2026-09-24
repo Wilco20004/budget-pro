@@ -1,47 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import Copyable from '../components/Copyable';
 import { usePeriod } from '../components/PeriodContext';
 import { setCurrency } from '../format';
 import { Settings } from '../types';
-
-// navigator.clipboard only exists in a secure context (HTTPS/localhost) — the
-// add-on is usually on plain HTTP, so fall back to execCommand, and failing
-// that tell the user to copy by hand rather than silently doing nothing.
-function copyText(text: string): boolean {
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(text).catch(() => undefined);
-    return true;
-  }
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.opacity = '0';
-  document.body.appendChild(ta);
-  ta.select();
-  let ok = false;
-  try {
-    ok = document.execCommand('copy');
-  } catch {
-    ok = false;
-  }
-  document.body.removeChild(ta);
-  return ok;
-}
-
-function Copyable({ text, label = 'Copy' }: { text: string; label?: string }) {
-  const [state, setState] = useState<'idle' | 'ok' | 'fail'>('idle');
-  return (
-    <button
-      className="small"
-      onClick={() => {
-        setState(copyText(text) ? 'ok' : 'fail');
-        setTimeout(() => setState('idle'), 2500);
-      }}
-    >
-      {state === 'ok' ? 'Copied ✓' : state === 'fail' ? 'Select & copy manually' : label}
-    </button>
-  );
-}
 
 export default function SettingsPage() {
   const { periods, current, reload } = usePeriod();
@@ -184,7 +146,8 @@ export default function SettingsPage() {
         <Copyable text={desktopJson} />
         <p className="small muted">
           Tools: get_period_summary, get_trend, search_transactions, spending_by_merchant, search_products, product_price_history,
-          list_categories, list_periods, categorize_transaction. If <code>{host}</code> isn’t how other machines reach Home
+          list_categories, list_periods, categorize_transaction, log_receipt. To log slips with your Claude subscription:
+          attach the slip photos in Claude Desktop (connected as above) and ask it to “log these slips in BudgetPro”. If <code>{host}</code> isn’t how other machines reach Home
           Assistant, swap in its LAN IP.
         </p>
       </div>

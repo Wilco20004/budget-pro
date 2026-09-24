@@ -17,7 +17,7 @@ import { getInboxDir } from './settings';
 // Processed files move to inbox/processed/, failures to inbox/failed/ with a
 // .error.txt beside them.
 
-const STATEMENT_EXT = ['.csv', '.ofx', '.qfx', '.txt'];
+const STATEMENT_EXT = ['.csv', '.ofx', '.qfx', '.txt', '.pdf'];
 const RECEIPT_EXT = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf'];
 
 interface InboxLogEntry {
@@ -101,7 +101,7 @@ export async function scanInbox(): Promise<{ processed: number; failed: number }
       try {
         const buf = fs.readFileSync(job.file);
         if (job.kind === 'statement') {
-          const r = importStatement(job.accountId, path.basename(job.file), buf, 'inbox');
+          const r = await importStatement(job.accountId, path.basename(job.file), buf, 'inbox');
           record(job.file, true, `${r.new_count} new, ${r.duplicate_count} already imported`);
         } else {
           const id = saveReceiptFile(buf, path.basename(job.file), mimeFor(job.file));

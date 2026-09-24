@@ -51,12 +51,32 @@ function getWorker(): Promise<Worker> {
   return workerPromise;
 }
 
+// Tesseract reads slip-sized fonts reliably at roughly 30px+ per line of
+// text; e-slip screenshots are often only ~420px wide, where it confuses
+// 9/5/6. Upscaling small images first (bicubic, greyscale) made the total on
+// a real Checkers e-slip readable where it wasn't before. Jimp is pure JS,
+// so no native build or apt packages are needed on the HA host.
+const MIN_OCR_WIDTH = 1260;
+
+async function prepareForOcr(filePath: string): Promise<Buffer | string> {
+  try {
+    const { Jimp, ResizeStrategy } = await import('jimp');
+    const img = await Jimp.read(filePath);
+    if (img.width >= MIN_OCR_WIDTH) return filePath;
+    const factor = Math.min(4, MIN_OCR_WIDTH / img.width);
+    img.resize({ w: Math.round(img.width * factor), mode: ResizeStrategy.BICUBIC }).greyscale();
+    return await img.getBuffer('image/png');
+  } catch {
+    return filePath; // formats Jimp can't decode go to tesseract as-is
+  }
+}
+
 // One OCR at a time: tesseract is CPU-heavy and the host is a shared SBC.
 let queue: Promise<unknown> = Promise.resolve();
 export function tesseractText(filePath: string): Promise<string> {
   const job = queue.then(async () => {
     const worker = await getWorker();
-    const { data } = await worker.recognize(filePath);
+    const { data } = await worker.recognize(await prepareForOcr(filePath));
     return data.text;
   });
   queue = job.catch(() => undefined);
@@ -78,9 +98,10 @@ const RECEIPT_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['name', 'quantity', 'amount', 'suggested_category'],
+        required: ['name', 'barcode', 'quantity', 'amount', 'suggested_category'],
         properties: {
           name: { type: 'string', description: 'Product line exactly as printed' },
+          barcode: { type: ['string', 'null'], description: 'The EAN/GTIN barcode digits printed with this line (e.g. "Item/GTIN 6001049058094"), or null' },
           quantity: { type: 'number' },
           amount: { type: 'number', description: 'Line total after any promotion on that line; negative for a discount line' },
           suggested_category: { type: ['string', 'null'], description: 'One of the provided category names, or null' },

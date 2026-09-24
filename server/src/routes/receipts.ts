@@ -105,6 +105,7 @@ receiptsRouter.get(
       | { file_path: string; mime_type: string }
       | undefined;
     if (!r) notFound('Receipt not found');
+    if (!r.file_path) notFound('This slip was logged without an image');
     const abs = path.join(UPLOADS_DIR, r.file_path);
     if (!fs.existsSync(abs)) notFound('File missing');
     res.type(r.mime_type).sendFile(abs);
@@ -134,14 +135,16 @@ receiptsRouter.put(
     db.transaction(() => {
       db.prepare('DELETE FROM receipt_items WHERE receipt_id = ?').run(id);
       const ins = db.prepare(
-        `INSERT INTO receipt_items (id, receipt_id, product_id, raw_name, quantity, amount, category_id, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO receipt_items (id, receipt_id, product_id, raw_name, quantity, amount, category_id, sort_order, barcode)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       );
       items.forEach((it: Record<string, unknown>, i: number) => {
         const name = str(it.raw_name);
         if (!name) return;
         const cat = str(it.category_id);
-        const productId = upsertProduct(name, cat ?? undefined);
-        ins.run(uuid(), id, productId, name, num(it.quantity, 1) || 1, round2(num(it.amount)), cat, i);
+        const barcode = str(it.barcode);
+        const productId = upsertProduct(name, cat ?? undefined, barcode && /^\d{8,14}$/.test(barcode) ? barcode : null);
+        ins.run(uuid(), id, productId, name, num(it.quantity, 1) || 1, round2(num(it.amount)), cat, i, barcode);
       });
     })();
     const r = db.prepare('SELECT transaction_id FROM receipts WHERE id = ?').get(id) as { transaction_id: string | null } | undefined;
@@ -196,7 +199,8 @@ receiptsRouter.delete(
   h((req, res) => {
     const r = db.prepare('SELECT file_path FROM receipts WHERE id = ?').get(req.params.id) as { file_path: string } | undefined;
     if (r) {
-      fs.rm(path.join(UPLOADS_DIR, r.file_path), { force: true }, () => undefined);
+      // Slips logged over MCP have no file — never rm the uploads dir itself.
+      if (r.file_path) fs.rm(path.join(UPLOADS_DIR, r.file_path), { force: true }, () => undefined);
       db.prepare('DELETE FROM receipts WHERE id = ?').run(req.params.id);
     }
     res.status(204).end();
@@ -221,7 +225,7 @@ export function queryProducts(opts: { q?: string; category_id?: string; limit?: 
   params.push(Math.min(opts.limit ?? 500, 5000));
   return db
     .prepare(
-      `SELECT p.id, p.name, p.category_id, c.name AS category_name,
+      `SELECT p.id, p.name, p.barcode, p.category_id, c.name AS category_name,
          COUNT(i.id) AS times_bought,
          ROUND(SUM(i.amount), 2) AS total_spent,
          ROUND(AVG(i.amount / i.quantity), 2) AS avg_unit_price,

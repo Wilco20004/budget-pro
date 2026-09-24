@@ -8,6 +8,7 @@ import { startInboxWatcher } from './inbox';
 import { mcpRouter } from './mcp';
 import { budgetsRouter, kpisRouter } from './routes/budgets';
 import { importsRouter } from './routes/imports';
+import { notificationsRouter } from './routes/notifications';
 import { productsRouter, receiptsRouter } from './routes/receipts';
 import {
   accountsRouter,
@@ -42,6 +43,7 @@ app.use('/api/transactions', transactionsRouter);
 app.use('/api/imports', importsRouter);
 app.use('/api/receipts', receiptsRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/notifications', notificationsRouter);
 app.use('/mcp', mcpRouter);
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));

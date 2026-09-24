@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { db } from './db';
+import { createDataReceipt, storeExtraction } from './receipts/service';
 import { productHistory, queryProducts } from './routes/receipts';
 import { queryTransactions, setSingleCategory } from './routes/transactions';
 import { periodKpis, trend } from './services/kpis';
@@ -157,6 +158,94 @@ function buildServer(): McpServer {
       annotations: { readOnlyHint: true },
     },
     async ({ product_id }) => json(productHistory(product_id))
+  );
+
+  server.registerTool(
+    'log_receipt',
+    {
+      title: 'Log a till slip',
+      description:
+        'Record a till slip you have read (e.g. from a photo the user attached): shop, date, total paid and every product line. ' +
+        'BudgetPro categorises each line (using its product database first, then your suggested category), matches the slip to the ' +
+        'bank transaction with the same total within a few days, and splits that transaction by category. Fold promotion/discount ' +
+        'lines (e.g. XTRASAVE) into the product they apply to; skip payment, change, VAT-summary and loyalty lines. Call list_categories ' +
+        'first to get valid category names. Pass transaction_id only when the user said which transaction the slip belongs to.',
+      inputSchema: {
+        merchant: z.string().describe('Shop as printed, e.g. "Checkers Hyper Sandton"'),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Purchase date YYYY-MM-DD'),
+        total: z.number().positive().describe('Amount paid (TOTAL / APPROVED AMOUNT)'),
+        items: z
+          .array(
+            z.object({
+              name: z.string().describe('Product line as printed'),
+              amount: z.number().describe('Line total after its promotion'),
+              quantity: z.number().positive().optional(),
+              barcode: z.string().optional().describe('GTIN/EAN digits if printed (Checkers: "Item/GTIN ...")'),
+              category: z.string().optional().describe('Suggested category name from list_categories'),
+            })
+          )
+          .min(1),
+        transaction_id: z.string().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    async ({ merchant, date, total, items, transaction_id }) => {
+      if (transaction_id && !db.prepare('SELECT 1 FROM transactions WHERE id = ?').get(transaction_id)) {
+        return { isError: true, content: [{ type: 'text' as const, text: `No transaction with id ${transaction_id}` }] };
+      }
+      // Same slip logged twice (a retried call, or the photo sent again)?
+      const dup = db
+        .prepare(
+          `SELECT id FROM receipts WHERE receipt_date = ? AND ABS(total - ?) < 0.005 AND engine = 'claude-mcp'`
+        )
+        .get(date, total) as { id: string } | undefined;
+      if (dup) return json({ ok: false, duplicate_of: dup.id, message: 'A slip with this date and total was already logged.' });
+
+      const id = createDataReceipt(transaction_id ?? null);
+      storeExtraction(
+        id,
+        {
+          merchant,
+          date,
+          total,
+          items: items.map((i) => ({
+            name: i.name,
+            amount: i.amount,
+            quantity: i.quantity ?? 1,
+            barcode: i.barcode ?? null,
+            suggested_category: i.category ?? null,
+          })),
+        },
+        'claude-mcp',
+        null
+      );
+      const r = db
+        .prepare(
+          `SELECT r.id, r.merchant_name, r.transaction_id, t.date AS transaction_date, t.description AS transaction_description, t.amount AS transaction_amount
+           FROM receipts r LEFT JOIN transactions t ON t.id = r.transaction_id WHERE r.id = ?`
+        )
+        .get(id) as { transaction_id: string | null } & Record<string, unknown>;
+      const lines = db
+        .prepare(
+          `SELECT i.raw_name, i.amount, c.name AS category FROM receipt_items i LEFT JOIN categories c ON c.id = i.category_id
+           WHERE i.receipt_id = ? ORDER BY i.sort_order`
+        )
+        .all(id) as { raw_name: string; amount: number; category: string | null }[];
+      const byCategory: Record<string, number> = {};
+      for (const l of lines) byCategory[l.category ?? 'Uncategorised'] = Math.round(((byCategory[l.category ?? 'Uncategorised'] ?? 0) + l.amount) * 100) / 100;
+      const linesTotal = Math.round(lines.reduce((a, l) => a + l.amount, 0) * 100) / 100;
+      return json({
+        ok: true,
+        receipt: r,
+        matched_transaction: Boolean(r.transaction_id),
+        lines_total: linesTotal,
+        lines_match_total: Math.abs(linesTotal - total) < 0.01,
+        by_category: byCategory,
+        note: r.transaction_id
+          ? 'Linked and split.'
+          : 'No bank transaction with this total yet — it will be matched automatically when the statement (or phone notification) arrives.',
+      });
+    }
   );
 
   server.registerTool(

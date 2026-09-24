@@ -60,6 +60,23 @@ export async function processReceipt(id: string): Promise<void> {
   db.prepare("UPDATE receipts SET status = 'processing', error = NULL, updated_at = ? WHERE id = ?").run(now(), id);
   try {
     const { engine, text, data } = await extract(r);
+    storeExtraction(id, data, engine, text);
+  } catch (e) {
+    db.prepare("UPDATE receipts SET status = 'failed', error = ?, updated_at = ? WHERE id = ?").run(
+      (e as Error).message,
+      now(),
+      id
+    );
+  }
+}
+
+/** Saves what was read off a slip — by OCR, the Claude reader, or an AI
+ *  client over MCP — categorises each line, then links the slip to its bank
+ *  transaction and splits it. */
+export function storeExtraction(id: string, data: ExtractedReceipt, engine: string, text: string | null): void {
+  const r = db.prepare('SELECT * FROM receipts WHERE id = ?').get(id) as ReceiptRow | undefined;
+  if (!r) return;
+  {
     const merchants = db.prepare('SELECT * FROM merchants').all() as MerchantRow[];
     const merchant = matchMerchant([data.merchant ?? '', text ?? ''].join(' '), merchants);
     const categoriesByName = new Map(
@@ -72,20 +89,21 @@ export async function processReceipt(id: string): Promise<void> {
     db.transaction(() => {
       db.prepare('DELETE FROM receipt_items WHERE receipt_id = ?').run(id);
       const insert = db.prepare(
-        `INSERT INTO receipt_items (id, receipt_id, product_id, raw_name, quantity, amount, category_id, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO receipt_items (id, receipt_id, product_id, raw_name, quantity, amount, category_id, sort_order, barcode)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       );
       data.items.forEach((it, i) => {
+        const barcode = it.barcode && /^\d{8,14}$/.test(it.barcode) ? it.barcode : null;
         // A category the user taught for this exact product always wins over
         // the model's guess — that's the whole point of the product database.
-        const learned = categoryForItem(it.name, merchant?.default_category_id ?? null);
+        const learned = categoryForItem(it.name, merchant?.default_category_id ?? null, undefined, barcode);
         const suggested = it.suggested_category ? categoriesByName.get(it.suggested_category.toLowerCase()) : undefined;
         const taught = learned.product_id
           ? (db.prepare('SELECT category_id FROM products WHERE id = ?').get(learned.product_id) as { category_id: string | null })
           : undefined;
         const categoryId = (taught?.category_id ? learned.category_id : suggested ?? learned.category_id) ?? null;
-        const productId = upsertProduct(it.name);
-        insert.run(uuid(), id, productId, it.name, it.quantity || 1, round2(it.amount), categoryId, i);
+        const productId = upsertProduct(it.name, undefined, barcode);
+        insert.run(uuid(), id, productId, it.name, it.quantity || 1, round2(it.amount), categoryId, i, barcode);
       });
       db.prepare(
         `UPDATE receipts SET status = 'parsed', engine = ?, ocr_text = ?, merchant_id = ?, merchant_name = ?,
@@ -100,13 +118,19 @@ export async function processReceipt(id: string): Promise<void> {
       const txId = findMatchingTransaction(id);
       if (txId) linkReceipt(id, txId, true);
     }
-  } catch (e) {
-    db.prepare("UPDATE receipts SET status = 'failed', error = ?, updated_at = ? WHERE id = ?").run(
-      (e as Error).message,
-      now(),
-      id
-    );
   }
+}
+
+/** A slip that exists only as data (no image) — logged by an AI client that
+ *  read the photo itself. */
+export function createDataReceipt(transactionId: string | null): string {
+  const id = uuid();
+  const t = now();
+  db.prepare(
+    `INSERT INTO receipts (id, file_path, mime_type, original_name, status, transaction_id, created_at, updated_at)
+     VALUES (?, '', 'none', NULL, 'processing', ?, ?, ?)`
+  ).run(id, transactionId, t, t);
+  return id;
 }
 
 /** A debit of exactly the slip total within 4 days of the slip date (card

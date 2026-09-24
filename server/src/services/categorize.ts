@@ -114,16 +114,28 @@ interface KeywordRow {
   category_id: string;
 }
 
+type ProductRow = { id: string; category_id: string | null };
+
+/** Barcode first (exact, survives OCR mangling the name), then name. */
+function findProduct(rawName: string, barcode?: string | null): ProductRow | undefined {
+  if (barcode) {
+    const byCode = db.prepare('SELECT id, category_id FROM products WHERE barcode = ?').get(barcode) as ProductRow | undefined;
+    if (byCode) return byCode;
+  }
+  return db.prepare('SELECT id, category_id FROM products WHERE name_key = ?').get(normalizeProductName(rawName)) as
+    | ProductRow
+    | undefined;
+}
+
 /** Category for one slip line: learned product → keyword → merchant default. */
 export function categoryForItem(
   rawName: string,
   merchantDefault: string | null,
-  keywords?: KeywordRow[]
+  keywords?: KeywordRow[],
+  barcode?: string | null
 ): { category_id: string | null; product_id: string | null } {
   const key = normalizeProductName(rawName);
-  const product = db.prepare('SELECT id, category_id FROM products WHERE name_key = ?').get(key) as
-    | { id: string; category_id: string | null }
-    | undefined;
+  const product = findProduct(rawName, barcode);
   if (product?.category_id) return { category_id: product.category_id, product_id: product.id };
   const kws = keywords ?? (db.prepare('SELECT keyword, category_id FROM category_keywords').all() as KeywordRow[]);
   const hay = ` ${key} `;
@@ -137,24 +149,23 @@ export function categoryForItem(
 
 /** Finds or creates the product row for a slip line and (optionally)
  *  teaches it a category. */
-export function upsertProduct(rawName: string, categoryId?: string | null): string {
+export function upsertProduct(rawName: string, categoryId?: string | null, barcode?: string | null): string {
   const key = normalizeProductName(rawName);
   const t = new Date().toISOString();
-  const existing = db.prepare('SELECT id FROM products WHERE name_key = ?').get(key) as { id: string } | undefined;
+  const existing = findProduct(rawName, barcode);
   if (existing) {
     if (categoryId !== undefined) {
       db.prepare('UPDATE products SET category_id = ?, updated_at = ? WHERE id = ?').run(categoryId, t, existing.id);
     }
+    if (barcode) db.prepare('UPDATE products SET barcode = COALESCE(barcode, ?) WHERE id = ?').run(barcode, existing.id);
     return existing.id;
   }
   const id = uuid();
-  db.prepare('INSERT INTO products (id, name_key, name, category_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(
-    id,
-    key,
-    rawName.trim(),
-    categoryId ?? null,
-    t,
-    t
-  );
+  // name_key is unique; a barcode-identified product whose (OCR'd) name
+  // collides with another product's gets the barcode appended.
+  const nameTaken = db.prepare('SELECT 1 FROM products WHERE name_key = ?').get(key);
+  db.prepare(
+    'INSERT INTO products (id, name_key, name, category_id, barcode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, nameTaken && barcode ? `${key} ${barcode}` : key, rawName.trim(), categoryId ?? null, barcode ?? null, t, t);
   return id;
 }

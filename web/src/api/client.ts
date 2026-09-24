@@ -6,6 +6,7 @@ import {
   ImportResult,
   Keyword,
   Merchant,
+  NotificationLog,
   Period,
   PeriodKpis,
   Product,
@@ -153,6 +154,7 @@ export const api = {
   },
   deleteImport: (id: string) => request<void>(`api/imports/${id}`, json('DELETE')),
   scanInbox: () => request<{ processed: number; failed: number }>('api/imports/inbox/scan', json('POST')),
+  notifications: () => request<NotificationLog[]>('api/notifications'),
 
   receipts: (unlinked = false) => request<ReceiptSummary[]>(`api/receipts${unlinked ? '?unlinked=1' : ''}`),
   receipt: (id: string) => request<ReceiptDetail>(`api/receipts/${id}`),
@@ -164,7 +166,7 @@ export const api = {
   },
   updateReceipt: (id: string, r: { merchant_name: string | null; merchant_id: string | null; receipt_date: string | null; total: number | null }) =>
     request<ReceiptDetail>(`api/receipts/${id}`, json('PUT', r)),
-  saveReceiptItems: (id: string, items: { raw_name: string; quantity: number; amount: number; category_id: string | null }[]) =>
+  saveReceiptItems: (id: string, items: { raw_name: string; quantity: number; amount: number; category_id: string | null; barcode?: string | null }[]) =>
     request<ReceiptDetail>(`api/receipts/${id}/items`, json('PUT', { items })),
   rescanReceipt: (id: string) => request<ReceiptDetail>(`api/receipts/${id}/rescan`, json('POST')),
   linkReceipt: (id: string, transaction_id: string) => request<ReceiptDetail>(`api/receipts/${id}/link`, json('POST', { transaction_id })),

@@ -10,3 +10,7 @@ data/*.db-shm
 data/*.db-wal
 data/uploads/*
 !data/uploads/.gitkeep
+data/inbox/
+data/tesseract-cache/
+samples/
+data/samples/

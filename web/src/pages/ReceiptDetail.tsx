@@ -11,6 +11,7 @@ interface Line {
   quantity: string;
   amount: string;
   category_id: string | null;
+  barcode: string | null;
 }
 
 const toLines = (r: Receipt): Line[] =>
@@ -20,6 +21,7 @@ const toLines = (r: Receipt): Line[] =>
     quantity: String(i.quantity),
     amount: i.amount.toFixed(2),
     category_id: i.category_id,
+    barcode: i.barcode,
   }));
 
 export default function ReceiptDetail() {
@@ -117,6 +119,7 @@ export default function ReceiptDetail() {
               quantity: parseFloat(l.quantity) || 1,
               amount: parseFloat(l.amount) || 0,
               category_id: l.category_id,
+              barcode: l.barcode,
             }))
           )
         ),
@@ -171,7 +174,12 @@ export default function ReceiptDetail() {
               <pre>{r.ocr_text}</pre>
             </details>
           )}
-          {r.engine && !r.ocr_text && <p className="small muted">Read by {r.engine === 'claude' ? 'Claude' : r.engine}.</p>}
+          {r.mime_type === 'none' && (
+            <div className="notice small">Logged by Claude over MCP from a photo — no image is stored for this slip.</div>
+          )}
+          {r.engine && !r.ocr_text && r.mime_type !== 'none' && (
+            <p className="small muted">Read by {r.engine === 'claude' ? 'Claude' : r.engine}.</p>
+          )}
         </div>
 
         <div>
@@ -293,7 +301,7 @@ export default function ReceiptDetail() {
             <div className="row" style={{ marginTop: '0.5rem' }}>
               <button
                 onClick={() => {
-                  setLines((ls) => [...ls, { key: tempKey(), raw_name: '', quantity: '1', amount: '', category_id: null }]);
+                  setLines((ls) => [...ls, { key: tempKey(), raw_name: '', quantity: '1', amount: '', category_id: null, barcode: null }]);
                   setDirty(true);
                 }}
               >
