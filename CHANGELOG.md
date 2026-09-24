@@ -1,5 +1,12 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.17.1 — 2026-09-24
+
+- Fix: since 1.16.0, when a period had uncategorised spending, the
+  dashboard's Uncategorised row added every category's figures to its own
+  (it has no id, and was matched as the "parent" of all top-level
+  categories). That inflated Spent, Planned and Left to spend.
+
 ## 1.17.0 — 2026-09-24
 
 - **FNB PDF statements**, as emailed, for cheque accounts, credit cards

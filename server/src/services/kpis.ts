@@ -221,7 +221,8 @@ export function periodKpis(period: Period): PeriodKpis {
   const byId = new Map(categories.map((c) => [c.category_id, c]));
   for (const c of categories) if (c.parent_id && !byId.has(c.parent_id)) c.parent_id = null; // parent hidden (archived, unused)
   for (const p of categories) {
-    const kids = categories.filter((c) => c.parent_id === p.category_id);
+    if (!p.category_id) continue; // Uncategorised has no subcategories (its null id must not match top-level rows)
+    const kids = categories.filter((c) => c.parent_id && c.parent_id === p.category_id);
     if (!kids.length) continue;
     p.own_actual = p.actual;
     p.own_planned = p.planned;
