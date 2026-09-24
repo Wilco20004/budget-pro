@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.13.0 — 2026-09-24
+
+- **WhatsApp slips** through the NeuraCore WhatsApp platform's callbacks:
+  a photo or PDF sent to your business number from one of your allowed
+  numbers becomes a slip (a statement PDF is imported). Import → WhatsApp
+  has the callback URL, the X-Api-Key and the allowed-numbers list, plus a
+  log. Other senders are ignored without downloading anything; other event
+  types are acknowledged and dropped; retries are de-duplicated by message
+  ID; media is fetched only from the configured platform address.
+- Email and WhatsApp now share one path for incoming files, so both treat
+  statements and slips the same way.
+
 ## 1.12.1 — 2026-09-24
 
 - Fix: Delete, Undo import, Regenerate token and Restore did nothing in

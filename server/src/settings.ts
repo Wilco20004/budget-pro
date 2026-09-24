@@ -21,6 +21,7 @@ interface AddonOptions {
   imap_folder?: string;
   imap_after_import?: string;
   imap_move_to?: string;
+  whatsapp_media_header?: string;
 }
 
 export interface EmailConfig {
@@ -87,6 +88,10 @@ export interface AppSettings {
   currency_symbol: string;
   ocr_engine: 'auto' | 'tesseract' | 'claude';
   publish_ha_sensors: boolean;
+  /** WhatsApp numbers whose photos/files are imported (comma-separated). */
+  whatsapp_numbers: string;
+  /** The WhatsApp platform's address, for fetching a message's MediaPath. */
+  whatsapp_media_base: string;
 }
 
 const DEFAULTS: AppSettings = {
@@ -95,6 +100,8 @@ const DEFAULTS: AppSettings = {
   currency_symbol: 'R',
   ocr_engine: 'auto',
   publish_ha_sensors: true,
+  whatsapp_numbers: '',
+  whatsapp_media_base: 'https://qa.crm.neuracore.co.za',
 };
 
 function getRaw(key: string): string | undefined {
@@ -129,6 +136,14 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
   if (!['auto', 'tesseract', 'claude'].includes(next.ocr_engine)) next.ocr_engine = DEFAULTS.ocr_engine;
   next.publish_ha_sensors = Boolean(next.publish_ha_sensors);
   next.currency_symbol = String(next.currency_symbol || DEFAULTS.currency_symbol).slice(0, 5);
+  next.whatsapp_numbers = String(next.whatsapp_numbers ?? '').slice(0, 500);
+  try {
+    const u = new URL(String(next.whatsapp_media_base || DEFAULTS.whatsapp_media_base));
+    if (!/^https?:$/.test(u.protocol)) throw new Error();
+    next.whatsapp_media_base = u.origin;
+  } catch {
+    next.whatsapp_media_base = DEFAULTS.whatsapp_media_base;
+  }
   setRaw('app', JSON.stringify(next));
   return next;
 }

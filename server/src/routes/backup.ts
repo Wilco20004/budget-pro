@@ -28,13 +28,14 @@ const TABLES = [
   'products',
   'receipt_items',
   'emails',
+  'whatsapp_messages',
   'category_keywords',
   'notifications',
 ];
 
 // Each install keeps its own API token: restoring must not break the Home
 // Assistant automation or AI clients already set up against this one.
-const KEEP_LOCAL_SETTINGS = ['api_token'];
+const KEEP_LOCAL_SETTINGS = ['api_token', 'whatsapp_key'];
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
 

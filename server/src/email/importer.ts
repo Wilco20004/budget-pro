@@ -1,13 +1,11 @@
-import path from 'path';
 import { ImapFlow } from 'imapflow';
 import { ParsedMail } from 'mailparser';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
 import { publishSensors } from '../ha';
-import { importStatement } from '../importers';
-import { parseStatement } from '../importers/parse';
 import { ExtractedReceipt, parseReceiptText } from '../receipts/parseText';
-import { createDataReceipt, processReceipt, saveReceiptFile, storeExtraction } from '../receipts/service';
+import { importIncomingFile, SLIP_IMAGE } from '../intake';
+import { createDataReceipt, storeExtraction } from '../receipts/service';
 import { EmailConfig, getEmailConfig } from '../settings';
 import { htmlToLines } from './htmlText';
 import { parseSixty60 } from './sixty60';
@@ -85,9 +83,6 @@ function embedded(mail: ParsedMail, cid: string | undefined): boolean {
   return Boolean(cid && typeof mail.html === 'string' && mail.html.includes(`cid:${cid}`));
 }
 
-const STATEMENT_EXT = ['.csv', '.ofx', '.qfx'];
-const IMAGE = /^image\/(jpeg|png|webp|gif|heic|heif)$/i;
-
 export async function handleMail(mail: ParsedMail): Promise<{ status: EmailStatus; detail: string; receipt_id: string | null }> {
   const notes: string[] = [];
   let receiptId: string | null = null;
@@ -96,39 +91,16 @@ export async function handleMail(mail: ParsedMail): Promise<{ status: EmailStatu
 
   for (const a of mail.attachments ?? []) {
     const name = a.filename || 'attachment';
-    const ext = path.extname(name).toLowerCase();
-    const isPdf = a.contentType === 'application/pdf' || ext === '.pdf';
+    // Images shown inside the email's HTML (logos, signatures, a forwarded
+    // letterhead) aren't slips; attached photos are.
+    if (SLIP_IMAGE.test(a.contentType) && (a.contentDisposition === 'inline' || a.related || embedded(mail, a.cid))) continue;
     try {
-      if (STATEMENT_EXT.includes(ext)) {
-        const r = await importStatement(null, name, a.content, 'email');
-        notes.push(`${name}: ${r.new_count} new transactions`);
-        statements++;
-      } else if (isPdf) {
-        // A PDF is a statement if a statement reader recognises it, else a slip.
-        let isStatement = false;
-        try {
-          isStatement = (await parseStatement(name, a.content)).rows.length > 0;
-        } catch {
-          isStatement = false;
-        }
-        if (isStatement) {
-          const r = await importStatement(null, name, a.content, 'email');
-          notes.push(`${name}: ${r.new_count} new transactions`);
-          statements++;
-        } else {
-          const id = saveReceiptFile(a.content, name, 'application/pdf');
-          await processReceipt(id);
-          receiptId ??= id;
-          notes.push(`${name}: slip added`);
-          slips++;
-        }
-      } else if (IMAGE.test(a.contentType) && a.contentDisposition !== 'inline' && !a.related && !embedded(mail, a.cid)) {
-        // Images shown inside the email's HTML (logos, signatures, a
-        // forwarded letterhead) aren't slips; attached photos are.
-        const id = saveReceiptFile(a.content, name, a.contentType.toLowerCase().replace('image/jpg', 'image/jpeg'));
-        await processReceipt(id);
-        receiptId ??= id;
-        notes.push(`${name}: slip added`);
+      const r = await importIncomingFile(a.content, name, a.contentType, 'email');
+      if (r.kind === 'skipped') continue; // e.g. a .ics invite or a signature file
+      notes.push(r.detail);
+      if (r.kind === 'statement') statements++;
+      else {
+        receiptId ??= r.receipt_id;
         slips++;
       }
     } catch (e) {

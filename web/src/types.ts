@@ -276,6 +276,8 @@ export interface Settings {
   currency_symbol: string;
   ocr_engine: 'auto' | 'tesseract' | 'claude';
   publish_ha_sensors: boolean;
+  whatsapp_numbers: string;
+  whatsapp_media_base: string;
   api_token: string;
   home_assistant: boolean;
   claude_available: boolean;
@@ -318,4 +320,22 @@ export interface NotificationLog {
   transaction_description: string | null;
   transaction_amount: number | null;
   provisional: number | null;
+}
+
+export interface WhatsappLog {
+  id: string;
+  received_at: string | null;
+  phone_tail: string | null;
+  author: string | null;
+  message_type: string | null;
+  status: 'receipt' | 'statement' | 'ignored' | 'not_allowed' | 'failed';
+  detail: string | null;
+  receipt_id: string | null;
+}
+
+export interface WhatsappStatus {
+  key: string;
+  numbers: string;
+  media_base: string;
+  recent: WhatsappLog[];
 }

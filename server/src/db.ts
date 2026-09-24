@@ -233,6 +233,23 @@ db.exec(`
 // 1.11.0: 'moved' / 'deleted' once an imported email was tidied out of the inbox.
 if (!hasColumn('emails', 'mailbox_action')) db.exec('ALTER TABLE emails ADD COLUMN mailbox_action TEXT');
 
+// 1.13.0: WhatsApp messages received through the NeuraCore callbacks, by
+// the platform's message ID (retries repeat it). Strangers are kept only as
+// the last digits of their number.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS whatsapp_messages (
+    id TEXT PRIMARY KEY,
+    received_at TEXT,
+    phone_tail TEXT,
+    author TEXT,
+    message_type TEXT,
+    status TEXT NOT NULL,
+    detail TEXT,
+    receipt_id TEXT REFERENCES receipts(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL
+  );
+`);
+
 // 1.5.0: display groups ("Fixed", "Living", "Lifestyle") — a layer over
 // expense categories for dashboard/plan subtotals only. Budgets, splits and
 // reconciling stay per category.
