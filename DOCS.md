@@ -202,3 +202,8 @@ in the add-on's Network settings; the sidebar UI doesn't use it.
 
 Everything lives in the add-on's `/data` (SQLite `budgetpro.db` plus
 `uploads/receipts/`), which is included in Home Assistant backups.
+
+**Settings → Backup & move** downloads all of it as one `.json` file and
+restores such a file into another BudgetPro (replacing everything there,
+except that install's API token). The file contains your full financial
+history — store it like a bank statement.

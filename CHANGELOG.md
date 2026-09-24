@@ -1,5 +1,16 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.4.0 — 2026-09-24
+
+- **Backup & move** (Settings): download everything (accounts,
+  transactions, categories, rules, budgets, slips with their images,
+  products) as one file, and restore it into another BudgetPro — e.g. from
+  a trial on a PC to the Home Assistant add-on. A restore replaces all data
+  in one step (a bad file changes nothing) and keeps the install's own API
+  token, so Home Assistant automations and AI clients keep working.
+- Phone notifications: the dash between shop and amount is matched more
+  loosely, in case it arrives mis-encoded.
+
 ## 1.3.0 — 2026-09-24
 
 - **Phone notifications**: Discovery Bank card payments and transfers

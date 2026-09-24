@@ -1,9 +1,64 @@
-import { useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { useEffect, useRef, useState } from 'react';
+import { api, downloadBackup } from '../api/client';
 import Copyable from '../components/Copyable';
 import { usePeriod } from '../components/PeriodContext';
 import { setCurrency } from '../format';
 import { Settings } from '../types';
+
+function BackupCard({ onRestored }: { onRestored: () => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function restore(file: File | undefined) {
+    if (!file) return;
+    if (
+      !confirm(
+        `Replace EVERYTHING in this BudgetPro with the contents of ${file.name}?\n\nAccounts, transactions, budgets, rules, slips and products here are overwritten. This install's API token is kept.`
+      )
+    ) {
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const r = await api.restoreBackup(file);
+      setMsg(
+        `Restored ${r.counts.transactions ?? 0} transactions, ${r.counts.accounts ?? 0} accounts, ${r.counts.categories ?? 0} categories, ${r.counts.merchants ?? 0} merchant rules, ${r.counts.receipts ?? 0} slips (${r.files} images), ${r.counts.products ?? 0} products.`
+      );
+      onRestored();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Backup &amp; move</h2>
+      <p className="small" style={{ marginTop: 0 }}>
+        Download everything as one file, or restore a file from another BudgetPro — e.g. to move from a trial on your PC to the
+        Home Assistant add-on. Home Assistant’s own backups include BudgetPro too.
+      </p>
+      {error && <div className="error">{error}</div>}
+      {msg && <div className="notice">{msg}</div>}
+      <div className="row">
+        <button onClick={() => downloadBackup().catch((e) => setError(e.message))} disabled={busy}>
+          ⬇ Download backup
+        </button>
+        <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => restore(e.target.files?.[0])} />
+        <button className="danger" onClick={() => fileRef.current?.click()} disabled={busy}>
+          {busy ? 'Restoring…' : '⬆ Restore from backup…'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { periods, current, reload } = usePeriod();
@@ -106,6 +161,8 @@ export default function SettingsPage() {
           {s.claude_available ? `✓ Key configured (model ${s.ai_model}).` : 'No key configured.'}
         </p>
       </div>
+
+      <BackupCard onRestored={() => api.settings().then(setS)} />
 
       <div className="card">
         <h2>Home Assistant</h2>

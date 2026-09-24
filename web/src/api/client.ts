@@ -89,6 +89,22 @@ function qs(params: Record<string, string | number | undefined | null>) {
   return s ? `?${s}` : '';
 }
 
+/** Backup download, fetched with the auth header and handed to the browser
+ *  as a blob link (works over plain HTTP; no File System Access API). */
+export async function downloadBackup(): Promise<void> {
+  const res = await fetch('api/backup', { headers: authHeaders() });
+  if (!res.ok) throw new Error('Could not create the backup');
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'budgetpro-backup.json';
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 /** Receipt images need the auth header too, so they're fetched and shown
  *  as blob URLs rather than a plain <img src>. */
 export async function fetchReceiptFileUrl(id: string): Promise<string> {
@@ -155,6 +171,11 @@ export const api = {
   deleteImport: (id: string) => request<void>(`api/imports/${id}`, json('DELETE')),
   scanInbox: () => request<{ processed: number; failed: number }>('api/imports/inbox/scan', json('POST')),
   notifications: () => request<NotificationLog[]>('api/notifications'),
+  restoreBackup: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request<{ ok: true; counts: Record<string, number>; files: number }>('api/backup/restore', { method: 'POST', body: fd });
+  },
 
   receipts: (unlinked = false) => request<ReceiptSummary[]>(`api/receipts${unlinked ? '?unlinked=1' : ''}`),
   receipt: (id: string) => request<ReceiptDetail>(`api/receipts/${id}`),

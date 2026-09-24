@@ -6,6 +6,7 @@ import { requireAuth } from './auth';
 import { publishSensors } from './ha';
 import { startInboxWatcher } from './inbox';
 import { mcpRouter } from './mcp';
+import { backupRouter } from './routes/backup';
 import { budgetsRouter, kpisRouter } from './routes/budgets';
 import { importsRouter } from './routes/imports';
 import { notificationsRouter } from './routes/notifications';
@@ -44,6 +45,7 @@ app.use('/api/imports', importsRouter);
 app.use('/api/receipts', receiptsRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/backup', backupRouter);
 app.use('/mcp', mcpRouter);
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));

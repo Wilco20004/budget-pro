@@ -1,5 +1,5 @@
 name: BudgetPro
-version: "1.3.0"
+version: "1.4.0"
 slug: budgetpro
 description: Payday-to-payday household budget — statement import, slip OCR, planned vs actual KPIs, and an MCP/API for AI analysis
 url: https://github.com/Wilco20004/budget-pro
