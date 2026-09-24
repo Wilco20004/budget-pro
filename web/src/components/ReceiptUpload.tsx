@@ -2,18 +2,23 @@ import { useRef, useState } from 'react';
 import { api } from '../api/client';
 
 // Phone photos are 3–12 MB; OCR doesn't need that. Images are scaled to at
-// most 2200px on the long side and re-encoded as JPEG before upload, which
-// also converts HEIC on iPhones (Safari decodes it for us). Uses only
-// <canvas> and createImageBitmap — no secure-context APIs, so it works over
-// plain HTTP on the LAN. The camera opens through <input capture>, not
-// getUserMedia, for the same reason.
-const MAX_SIDE = 2200;
+// most 2000px wide (and 12 MP) and re-encoded as JPEG before upload, which
+// also converts HEIC on iPhones (Safari decodes it for us). Width, not the
+// long side: a long e-slip screenshot is narrow and very tall, and capping
+// its height squashed the text to unreadable. Images already small enough
+// go up untouched — re-encoding blurs small print. Uses only <canvas> and
+// createImageBitmap — no secure-context APIs, so it works over plain HTTP
+// on the LAN. The camera opens through <input capture>, not getUserMedia,
+// for the same reason.
+const MAX_WIDTH = 2000;
+const MAX_PIXELS = 12_000_000;
 
 async function shrink(file: File): Promise<{ blob: Blob; name: string }> {
   if (file.type === 'application/pdf' || !file.type.startsWith('image/')) return { blob: file, name: file.name };
   try {
     const bmp = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+    const scale = Math.min(1, MAX_WIDTH / bmp.width, Math.sqrt(MAX_PIXELS / (bmp.width * bmp.height)));
+    if (scale === 1 && /^image\/(jpeg|png|webp)$/.test(file.type)) return { blob: file, name: file.name };
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(bmp.width * scale);
     canvas.height = Math.round(bmp.height * scale);

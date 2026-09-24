@@ -6,7 +6,7 @@ import { categoryForItem, matchMerchant, MerchantRow, upsertProduct } from '../s
 import { addDays } from '../services/periods';
 import { getSettings } from '../settings';
 import { claudeAvailable, claudeExtract, parseReceiptText, pdfText, tesseractText } from './engines';
-import { ExtractedReceipt } from './parseText';
+import { ExtractedReceipt, KnownProducts } from './parseText';
 
 export interface ReceiptRow {
   id: string;
@@ -37,6 +37,17 @@ export function saveReceiptFile(buf: Buffer, originalName: string, mimeType: str
   return id;
 }
 
+/** Barcodes and past prices from earlier slips, to correct OCR misreads. */
+const KNOWN_PRODUCTS: KnownProducts = {
+  barcode: (code) => Boolean(db.prepare('SELECT 1 FROM products WHERE barcode = ?').get(code)),
+  prices: (code) =>
+    (
+      db
+        .prepare('SELECT DISTINCT ROUND(amount / quantity, 2) AS p FROM receipt_items WHERE barcode = ? AND quantity > 0 AND amount > 0')
+        .all(code) as { p: number }[]
+    ).map((r) => r.p),
+};
+
 async function extract(r: ReceiptRow): Promise<{ engine: string; text: string | null; data: ExtractedReceipt }> {
   const abs = path.join(UPLOADS_DIR, r.file_path);
   const buf = fs.readFileSync(abs);
@@ -48,8 +59,10 @@ async function extract(r: ReceiptRow): Promise<{ engine: string; text: string | 
     );
     return { engine: 'claude', text: null, data: await claudeExtract(buf, r.mime_type, names) };
   }
-  const text = r.mime_type === 'application/pdf' ? await pdfText(buf) : await tesseractText(abs);
-  return { engine: r.mime_type === 'application/pdf' ? 'pdf-text' : 'tesseract', text, data: parseReceiptText(text) };
+  const isPdf = r.mime_type === 'application/pdf';
+  const text = isPdf ? await pdfText(buf) : await tesseractText(abs);
+  // PDF text is exact; only OCR output gets its misread digits corrected.
+  return { engine: isPdf ? 'pdf-text' : 'tesseract', text, data: parseReceiptText(text, { ocr: !isPdf, known: KNOWN_PRODUCTS }) };
 }
 
 /** OCR / extract a slip, store its lines with categories, and try to link it
@@ -115,10 +128,29 @@ export function storeExtraction(id: string, data: ExtractedReceipt, engine: stri
       // Attached straight from a transaction — split it by the slip lines.
       applyReceiptSplits(id);
     } else {
-      const txId = findMatchingTransaction(id);
+      const txId = findMatchingTransaction(id) ?? matchByAlternatives(id, data.total_alternatives ?? []);
       if (txId) linkReceipt(id, txId, true);
     }
   }
+}
+
+/** OCR misread the total (R87.97 as "R87.57"): if exactly one unclaimed
+ *  transaction near the slip date is one of the total's plausible readings,
+ *  that's the slip — and the bank's exact amount becomes the total. */
+function matchByAlternatives(receiptId: string, alternatives: number[]): string | null {
+  const r = db.prepare('SELECT * FROM receipts WHERE id = ?').get(receiptId) as ReceiptRow | undefined;
+  if (!r?.receipt_date || !alternatives.length) return null;
+  const rows = db
+    .prepare(
+      `SELECT t.id, t.amount FROM transactions t
+       WHERE t.date BETWEEN ? AND ? AND t.amount < 0
+         AND ROUND(-t.amount, 2) IN (${alternatives.map(() => '?').join(', ')})
+         AND NOT EXISTS (SELECT 1 FROM receipts r WHERE r.transaction_id = t.id)`
+    )
+    .all(addDays(r.receipt_date, -1), addDays(r.receipt_date, 4), ...alternatives.map(round2)) as { id: string; amount: number }[];
+  if (rows.length !== 1) return null;
+  db.prepare('UPDATE receipts SET total = ?, updated_at = ? WHERE id = ?').run(round2(-rows[0].amount), now(), receiptId);
+  return rows[0].id;
 }
 
 /** A slip that exists only as data (no image) — logged by an AI client that

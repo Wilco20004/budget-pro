@@ -1,5 +1,26 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.8.0 — 2026-09-24
+
+- **Better reading of e-slip screenshots** (e.g. Checkers/Shoprite app
+  slips, ~420px wide), where the built-in OCR misreads digits — 9 as 5, 8
+  or "%", 6 as "€":
+  - Small images are upscaled 2× instead of 3×, which read about twice as
+    many prices right in testing.
+  - The date is agreed over every "Date Time Store" row printed, and
+    impossible dates (in the future, years ago) are rejected.
+  - Prices with lookalike characters ("R27.8%") are kept rather than
+    dropped. Barcodes are repaired with their check digit, and a product
+    bought before gets its known price when the reading is close to it —
+    so repeat purchases come out right.
+  - The total is taken from what TOTAL, APPROVED AMOUNT and Electronic
+    Payment agree on. When it's still misread, a slip is linked to the one
+    bank transaction nearby that matches a plausible reading of the total,
+    and takes the bank's exact amount.
+- Fix: long slip screenshots uploaded from a phone were squashed to an
+  unreadable ~250px width. Uploads are now limited by width, and images
+  that are already small enough are sent unchanged.
+
 ## 1.7.0 — 2026-09-24
 
 - **Skip the slip**: a transaction in a slip-required category can be

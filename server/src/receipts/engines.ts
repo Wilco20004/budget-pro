@@ -53,10 +53,11 @@ function getWorker(): Promise<Worker> {
 
 // Tesseract reads slip-sized fonts reliably at roughly 30px+ per line of
 // text; e-slip screenshots are often only ~420px wide, where it confuses
-// 9/5/6. Upscaling small images first (bicubic, greyscale) made the total on
-// a real Checkers e-slip readable where it wasn't before. Jimp is pure JS,
-// so no native build or apt packages are needed on the HA host.
-const MIN_OCR_WIDTH = 1260;
+// 9/5/6. Upscaling small images first (bicubic, greyscale) helps; on four
+// real 420px Checkers e-slips, 2x read 19 of 50 prices right against 8 at
+// 3x and 4 unscaled, so small images are brought to ~840px. Jimp is pure
+// JS, so no native build or apt packages are needed on the HA host.
+const MIN_OCR_WIDTH = 840;
 
 async function prepareForOcr(filePath: string): Promise<Buffer | string> {
   try {
