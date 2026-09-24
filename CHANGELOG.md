@@ -1,5 +1,18 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.6.0 — 2026-09-24
+
+- **Discovery transaction-history PDFs**: one file covering any date range
+  and all accounts. Each account's section is imported into the matching
+  BudgetPro account; accounts that aren't set up are skipped with a note.
+  Debit and credit are read by column position and every row is checked
+  against the running balance.
+- **Overlapping exports are recognised**: when a file repeats transactions
+  already imported from a different kind of export (e.g. a history over
+  monthly statements — different wording, posting instead of transaction
+  date), they're paired by account, amount and date, and the existing
+  categorised copy is kept. Only genuinely new transactions are added.
+
 ## 1.5.0 — 2026-09-24
 
 - **Category groups** (Setup → Groups): bundle spending categories into

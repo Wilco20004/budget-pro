@@ -196,6 +196,8 @@ export interface ImportResult {
   auto_categorized: number;
   receipts_linked: number;
   provisional_replaced: number;
+  matched_existing: number;
+  accounts: { name: string; new_count: number; duplicate_count: number }[];
   warnings: string[];
 }
 

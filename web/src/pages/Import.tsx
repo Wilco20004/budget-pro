@@ -59,10 +59,11 @@ export default function Import() {
       <div className="card">
         <h2>Upload a statement</h2>
         <p className="small muted" style={{ marginTop: 0 }}>
-          <strong>Discovery Bank:</strong> the monthly PDF statements as they are (transaction account and credit card) — each
-          is checked against its opening and closing balance. <strong>FNB:</strong> Online Banking → account → Transaction
-          History → Download → CSV. OFX works too. Re-importing an overlapping statement is safe — transactions already
-          imported are skipped.
+          <strong>Discovery Bank:</strong> the monthly PDF statements (checked against their opening and closing balance), or a
+          transaction-history PDF for any date range — it covers all your accounts in one file and is checked row by row against
+          its running balance. <strong>FNB:</strong> Online Banking → account → Transaction History → Download → CSV. OFX works
+          too. Overlaps are safe: transactions you already have — even from a different kind of export, with different wording
+          or dates — are recognised and your categorised copy is kept.
         </p>
         <div className="row">
           <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
@@ -85,6 +86,17 @@ export default function Import() {
             {r.receipts_linked ? `, ${r.receipts_linked} slip(s) matched` : ''}
             {r.provisional_replaced ? `, ${r.provisional_replaced} phone-notification transaction(s) confirmed` : ''}.{' '}
             <Link to="/transactions?status=uncategorized">Reconcile →</Link>
+            {r.matched_existing > 0 && (
+              <div className="small muted">
+                {r.matched_existing} of the ones already imported came from a different export of the same account and were
+                recognised by amount and date — your existing, categorised copies were kept.
+              </div>
+            )}
+            {r.accounts && r.accounts.length > 1 && (
+              <div className="small muted">
+                {r.accounts.map((a) => `${a.name}: ${a.new_count} new`).join(' · ')}
+              </div>
+            )}
             {r.warnings.map((w) => (
               <div key={w} className="small" style={{ color: 'var(--warning-text)' }}>
                 ⚠ {w}

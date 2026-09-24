@@ -29,8 +29,20 @@ the dashboard, in Home Assistant sensors, and available to AI through MCP.
   warning. The account is recognised from the account number on the
   statement. Password-protected PDFs need an unlocked copy first
   ("Print → Save as PDF").
+- Discovery Bank: the **transaction history** PDF (any date range, all
+  accounts in one file). Each section goes to the matching BudgetPro
+  account; sections for accounts you haven't set up are skipped with a
+  note. Every row is checked against the running balance.
 - FNB: Online Banking → the account → Transaction History → Download → CSV.
 - Any bank: CSV or OFX.
+
+Mixing export types is safe. The same transaction appears with different
+wording and often a different date in a monthly statement (transaction
+date) and a transaction history (posting date). When a file overlaps
+transactions already imported from a *different* kind of export,
+BudgetPro pairs them by account, amount and date (within 4 days, in date
+order) and keeps your existing, categorised copy — only genuinely new
+transactions are added.
 
 Columns are detected from the header row (date, description, amount — or
 separate debit/credit columns — and balance), with SA formats handled

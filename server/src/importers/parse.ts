@@ -7,6 +7,9 @@ export interface ParsedRow {
   balance: number | null;
   /** Bank-supplied unique id (OFX FITID), when the format has one. */
   externalId?: string;
+  /** Account number of the section this row is in, for files that cover
+   *  several accounts (Discovery transaction history). */
+  accountHint?: string;
 }
 
 export interface ParsedStatement {
@@ -15,6 +18,8 @@ export interface ParsedStatement {
   /** Account number(s) spotted in the file, for matching to an account. */
   accountHints: string[];
   warnings: string[];
+  /** Multi-account files: account number → the bank's name for it. */
+  sectionNames?: Record<string, string>;
 }
 
 const MONTHS: Record<string, number> = {
@@ -228,7 +233,9 @@ export async function parseStatement(filename: string, buf: Buffer): Promise<Par
       );
     }
     if (isDiscoveryStatement(text)) return parseDiscoveryStatement(text, filename);
-    throw new Error('Only Discovery Bank PDF statements can be read so far — for other banks, download the CSV instead.');
+    const { isDiscoveryHistory, parseDiscoveryHistory } = await import('./discoveryHistory.js');
+    if (isDiscoveryHistory(text)) return parseDiscoveryHistory(buf);
+    throw new Error('Only Discovery Bank PDF statements and transaction histories can be read so far — for other banks, download the CSV instead.');
   }
   const text = buf.toString('utf-8');
   if (lower.endsWith('.ofx') || lower.endsWith('.qfx') || /<OFX>/i.test(text.slice(0, 2000))) {
