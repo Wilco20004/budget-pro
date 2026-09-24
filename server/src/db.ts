@@ -206,6 +206,22 @@ if (!hasColumn('transactions', 'provisional')) {
   db.exec('ALTER TABLE transactions ADD COLUMN provisional INTEGER NOT NULL DEFAULT 0');
 }
 
+// 1.5.0: display groups ("Fixed", "Living", "Lifestyle") — a layer over
+// expense categories for dashboard/plan subtotals only. Budgets, splits and
+// reconciling stay per category.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS category_groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+`);
+if (!hasColumn('categories', 'group_id')) {
+  db.exec('ALTER TABLE categories ADD COLUMN group_id TEXT REFERENCES category_groups(id) ON DELETE SET NULL');
+}
+
 // Every notification Home Assistant forwards, and what became of it. Text
 // is only kept for notifications that looked like they came from a bank —
 // a stray WhatsApp message is logged as "not a bank notification" and its
@@ -333,6 +349,32 @@ function applySeed(version: string, merchants: [string, string, string][]) {
     db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, t);
   })();
 }
+
+// Starter groups, with the default categories (by name, if they still exist
+// and aren't grouped yet) placed in them. Categories the user added stay
+// ungrouped until they choose.
+(function seedGroups() {
+  const key = 'seed_groups_1';
+  if (db.prepare('SELECT 1 FROM settings WHERE key = ?').get(key)) return;
+  const groups: [string, string[]][] = [
+    ['Fixed', ['Bond', 'Bond / Rent', 'Utilities', 'Insurance', 'Medical aid', 'Life cover', 'Phone & Internet', 'Subscriptions', 'Bank fees']],
+    ['Living', ['Groceries', 'Kids', 'Medical', 'Fuel', 'Fuel / Toll', 'Household', 'Personal care']],
+    ['Lifestyle', ['Eating out', 'Entertainment']],
+  ];
+  const t = now();
+  db.transaction(() => {
+    groups.forEach(([name, cats], i) => {
+      const existing = db.prepare('SELECT id FROM category_groups WHERE name = ?').get(name) as { id: string } | undefined;
+      const id = existing?.id ?? uuid();
+      if (!existing) {
+        db.prepare('INSERT INTO category_groups (id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(id, name, i, t, t);
+      }
+      const set = db.prepare("UPDATE categories SET group_id = ? WHERE name = ? AND group_id IS NULL AND kind = 'expense'");
+      for (const c of cats) set.run(id, c);
+    });
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, t);
+  })();
+})();
 
 applySeed('discovery_1', [
   // Moving money between your own accounts — excluded from spending.

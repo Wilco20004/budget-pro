@@ -17,6 +17,7 @@ export interface Category {
   default_budget: number;
   sort_order: number;
   archived: number;
+  group_id: string | null;
 }
 
 export interface Account {
@@ -38,6 +39,25 @@ export interface Merchant {
   default_category_id: string | null;
   category_name?: string | null;
   transaction_count?: number;
+}
+
+export interface CategoryGroup {
+  id: string;
+  name: string;
+  sort_order: number;
+  category_count?: number;
+}
+
+export interface GroupKpi {
+  group_id: string | null;
+  name: string;
+  planned: number;
+  actual: number;
+  remaining: number;
+  pct_used: number | null;
+  pace_expected: number;
+  status: CategoryKpi['status'];
+  category_ids: (string | null)[];
 }
 
 export interface Keyword {
@@ -95,6 +115,8 @@ export interface CategoryKpi {
   projected: number;
   status: 'over' | 'ahead_of_pace' | 'on_track' | 'unplanned' | 'no_activity';
   transaction_count: number;
+  group_id: string | null;
+  group_name: string | null;
 }
 
 export interface PeriodKpis {
@@ -125,6 +147,7 @@ export interface PeriodKpis {
     slip_coverage: number | null;
   };
   categories: CategoryKpi[];
+  groups: GroupKpi[];
 }
 
 export interface TrendPoint {
@@ -147,6 +170,8 @@ export interface BudgetLine {
   override: number | null;
   planned: number;
   previous_actual: number;
+  group_id: string | null;
+  group_name: string | null;
 }
 
 export interface ImportRecord {

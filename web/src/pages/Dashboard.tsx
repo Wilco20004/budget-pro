@@ -4,9 +4,43 @@ import { api } from '../api/client';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import TrendChart from '../components/TrendChart';
 import { money } from '../format';
-import { CategoryKpi, PeriodKpis, TrendPoint } from '../types';
+import { CategoryKpi, GroupKpi, PeriodKpis, TrendPoint } from '../types';
 
-function Bullet({ c, fraction }: { c: CategoryKpi; fraction: number }) {
+/** A group's subtotal bar, followed by its categories. */
+function GroupBlock({ g, members, fraction }: { g: GroupKpi; members: CategoryKpi[]; fraction: number }) {
+  const shown = members.filter((c) => c.status !== 'no_activity').sort((a, b) => b.actual - a.actual);
+  if (!shown.length && !g.planned) return null;
+  const asKpi: CategoryKpi = {
+    category_id: null,
+    name: g.name,
+    kind: 'expense',
+    color: null,
+    icon: null,
+    requires_slip: false,
+    planned: g.planned,
+    actual: g.actual,
+    remaining: g.remaining,
+    pct_used: g.pct_used,
+    pace_expected: g.pace_expected,
+    projected: g.actual,
+    status: g.status,
+    transaction_count: 0,
+    group_id: g.group_id,
+    group_name: g.name,
+  };
+  return (
+    <div className="group-block">
+      <Bullet c={asKpi} fraction={fraction} header />
+      <div className="bullets group-members">
+        {shown.map((c) => (
+          <Bullet key={c.category_id ?? 'uncat'} c={c} fraction={fraction} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Bullet({ c, fraction, header = false }: { c: CategoryKpi; fraction: number; header?: boolean }) {
   const scale = Math.max(c.planned, c.actual, 1);
   const pct = (v: number) => `${Math.min(100, (v / scale) * 100)}%`;
   const cls = c.status === 'over' ? 'over' : c.status === 'ahead_of_pace' ? 'ahead' : '';
@@ -22,11 +56,17 @@ function Bullet({ c, fraction }: { c: CategoryKpi; fraction: number }) {
             : null;
   const link = c.category_id ? `/transactions?category=${c.category_id}` : '/transactions?status=uncategorized';
   return (
-    <div className="bullet">
-      <Link to={link} className="name" style={{ color: 'var(--ink)', textDecoration: 'none' }} title={c.name}>
-        <span className="icon">{c.icon}</span>
-        {c.name}
-      </Link>
+    <div className={`bullet${header ? ' group-head' : ''}`}>
+      {header ? (
+        <span className="name" title={c.name}>
+          {c.name}
+        </span>
+      ) : (
+        <Link to={link} className="name" style={{ color: 'var(--ink)', textDecoration: 'none' }} title={c.name}>
+          <span className="icon">{c.icon}</span>
+          {c.name}
+        </Link>
+      )}
       <div
         className="track"
         title={`Actual ${money(c.actual)} of ${money(c.planned)} planned${c.planned ? ` — on-pace spend by today is ${money(c.pace_expected)}` : ''}`}
@@ -172,12 +212,19 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="bullets">
-                {expenses
-                  .slice()
-                  .sort((a, b) => b.actual - a.actual)
-                  .map((c) => (
-                    <Bullet key={c.category_id ?? 'uncat'} c={c} fraction={k.elapsed_fraction} />
-                  ))}
+                {k.groups.length > 1 || (k.groups[0] && k.groups[0].group_id)
+                  ? k.groups.map((g) => (
+                      <GroupBlock
+                        key={g.group_id ?? 'other'}
+                        g={g}
+                        members={k.categories.filter((c) => c.kind === 'expense' && g.category_ids.includes(c.category_id))}
+                        fraction={k.elapsed_fraction}
+                      />
+                    ))
+                  : expenses
+                      .slice()
+                      .sort((a, b) => b.actual - a.actual)
+                      .map((c) => <Bullet key={c.category_id ?? 'uncat'} c={c} fraction={k.elapsed_fraction} />)}
               </div>
             )}
             {savings.length > 0 && (

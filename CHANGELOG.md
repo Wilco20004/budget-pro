@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.5.0 — 2026-09-24
+
+- **Category groups** (Setup → Groups): bundle spending categories into
+  groups such as *Fixed*, *Living* and *Lifestyle*. The dashboard shows a
+  subtotal bar per group with its categories underneath, the Plan page
+  subtotals by group, and each group gets a Home Assistant sensor
+  (`sensor.budgetpro_group_<name>_remaining`). Groups are for display only —
+  budgets and reconciling stay per category. Fixed / Living / Lifestyle are
+  created with the built-in categories placed in them; categories you added
+  yourself start ungrouped (shown under *Other*) until you pick a group on
+  the Categories tab.
+
 ## 1.4.0 — 2026-09-24
 
 - **Backup & move** (Settings): download everything (accounts,

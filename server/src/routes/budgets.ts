@@ -18,10 +18,11 @@ budgetsRouter.get(
     const rows = db
       .prepare(
         `SELECT c.id AS category_id, c.name, c.kind, c.icon, c.color, c.requires_slip, c.default_budget,
-                b.amount AS override
+                b.amount AS override, c.group_id, g.name AS group_name
          FROM categories c LEFT JOIN budget_lines b ON b.category_id = c.id AND b.period_start = ?
+         LEFT JOIN category_groups g ON g.id = c.group_id
          WHERE c.archived = 0 AND c.kind != 'transfer'
-         ORDER BY c.sort_order, c.name`
+         ORDER BY COALESCE(g.sort_order, 999999), c.sort_order, c.name`
       )
       .all(period.start) as { category_id: string; default_budget: number; override: number | null }[];
     res.json({

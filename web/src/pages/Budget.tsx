@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import { money } from '../format';
@@ -95,8 +95,28 @@ export default function Budget() {
                   </tr>
                 </thead>
                 <tbody>
-                  {ls.map((l) => (
-                    <tr key={l.category_id}>
+                  {ls.map((l, i) => (
+                    <Fragment key={l.category_id}>
+                    {kind === 'expense' && (i === 0 || ls[i - 1].group_id !== l.group_id) && (
+                      <tr className="group-row">
+                        <td>{l.group_name ?? 'Other'}</td>
+                        <td className="num">
+                          {money(
+                            ls.filter((x) => x.group_id === l.group_id).reduce((a, x) => a + x.previous_actual, 0),
+                            { whole: true }
+                          )}
+                        </td>
+                        <td className="num">
+                          {money(
+                            ls
+                              .filter((x) => x.group_id === l.group_id)
+                              .reduce((a, x) => a + (parseFloat(values[x.category_id]) || 0), 0),
+                            { whole: true }
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    <tr>
                       <td>
                         <span className="icon">{l.icon}</span> {l.name}
                         {l.requires_slip ? <span className="small muted"> · slip required</span> : null}
@@ -127,6 +147,7 @@ export default function Budget() {
                         />
                       </td>
                     </tr>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

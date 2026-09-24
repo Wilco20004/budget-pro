@@ -155,6 +155,8 @@ function categoryInput(body: Record<string, unknown>) {
     default_budget: num(body.default_budget),
     sort_order: Math.round(num(body.sort_order)),
     archived: body.archived ? 1 : 0,
+    // Groups only apply to spending; other kinds are shown in their own sections.
+    group_id: kind === 'expense' ? str(body.group_id) : null,
   };
 }
 
@@ -168,9 +170,9 @@ categoriesRouter.post(
       c.sort_order = ((db.prepare('SELECT MAX(sort_order) AS m FROM categories').get() as { m: number | null }).m ?? 0) + 1;
     }
     db.prepare(
-      `INSERT INTO categories (id, name, kind, color, icon, requires_slip, default_budget, sort_order, archived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, t, t);
+      `INSERT INTO categories (id, name, kind, color, icon, requires_slip, default_budget, sort_order, archived, group_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, t, t);
     res.status(201).json(db.prepare('SELECT * FROM categories WHERE id = ?').get(id));
   })
 );
@@ -181,10 +183,10 @@ categoriesRouter.put(
     const c = categoryInput(req.body ?? {});
     const r = db
       .prepare(
-        `UPDATE categories SET name = ?, kind = ?, color = ?, icon = ?, requires_slip = ?, default_budget = ?, sort_order = ?, archived = ?, updated_at = ?
+        `UPDATE categories SET name = ?, kind = ?, color = ?, icon = ?, requires_slip = ?, default_budget = ?, sort_order = ?, archived = ?, group_id = ?, updated_at = ?
          WHERE id = ?`
       )
-      .run(c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, now(), req.params.id);
+      .run(c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, now(), req.params.id);
     if (!r.changes) notFound('Category not found');
     publishSensors().catch(() => undefined);
     res.json(db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id));
@@ -201,6 +203,64 @@ categoriesRouter.delete(
       throw new Error(`${used.n} transaction(s) use this category — archive it instead, or move them first.`);
     }
     db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id);
+    res.status(204).end();
+  })
+);
+
+// ---- Category groups (display only) -----------------------------------------
+
+export const groupsRouter = Router();
+
+groupsRouter.get(
+  '/',
+  h((_req, res) => {
+    res.json(
+      db
+        .prepare(
+          `SELECT g.*, (SELECT COUNT(*) FROM categories c WHERE c.group_id = g.id AND c.archived = 0) AS category_count
+           FROM category_groups g ORDER BY g.sort_order, g.name`
+        )
+        .all()
+    );
+  })
+);
+
+groupsRouter.post(
+  '/',
+  h((req, res) => {
+    const name = str(req.body?.name);
+    if (!name) throw new Error('Name is required');
+    const id = uuid();
+    const t = now();
+    const order = ((db.prepare('SELECT MAX(sort_order) AS m FROM category_groups').get() as { m: number | null }).m ?? -1) + 1;
+    db.prepare('INSERT INTO category_groups (id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(id, name, order, t, t);
+    res.status(201).json(db.prepare('SELECT * FROM category_groups WHERE id = ?').get(id));
+  })
+);
+
+groupsRouter.put(
+  '/:id',
+  h((req, res) => {
+    const name = str(req.body?.name);
+    if (!name) throw new Error('Name is required');
+    const r = db
+      .prepare('UPDATE category_groups SET name = ?, sort_order = ?, updated_at = ? WHERE id = ?')
+      .run(name, Math.round(num(req.body?.sort_order)), now(), req.params.id);
+    if (!r.changes) notFound('Group not found');
+    publishSensors().catch(() => undefined);
+    res.json(db.prepare('SELECT * FROM category_groups WHERE id = ?').get(req.params.id));
+  })
+);
+
+/** Deleting a group just ungroups its categories. */
+groupsRouter.delete(
+  '/:id',
+  h((req, res) => {
+    db.transaction(() => {
+      db.prepare('UPDATE categories SET group_id = NULL WHERE group_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM category_groups WHERE id = ?').run(req.params.id);
+    })();
+    publishSensors().catch(() => undefined);
     res.status(204).end();
   })
 );

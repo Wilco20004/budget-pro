@@ -86,6 +86,20 @@ export async function publishSensors(): Promise<void> {
         uncategorized: k.recon.uncategorized,
         needs_slip: k.recon.needs_slip,
       });
+      for (const g of k.groups) {
+        if (!g.group_id) continue;
+        await setState(`sensor.budgetpro_group_${slug(g.name)}_remaining`, g.remaining, {
+          ...money,
+          ...base,
+          state_class: 'measurement',
+          friendly_name: `${g.name} remaining`,
+          icon: 'mdi:folder-outline',
+          planned: g.planned,
+          actual: g.actual,
+          pct_used: g.pct_used,
+          status: g.status,
+        });
+      }
       for (const c of k.categories) {
         if (c.kind === 'income' || !c.category_id) continue;
         await setState(`sensor.budgetpro_${slug(c.name)}_remaining`, c.remaining, {

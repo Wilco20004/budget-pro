@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import CategorySelect from '../components/CategorySelect';
 import { money, shortDate } from '../format';
-import { Account, Category, Keyword, Merchant } from '../types';
+import { Account, Category, CategoryGroup, Keyword, Merchant } from '../types';
 
-type Tab = 'accounts' | 'categories' | 'merchants' | 'keywords';
+type Tab = 'accounts' | 'categories' | 'groups' | 'merchants' | 'keywords';
 const TABS: [Tab, string][] = [
   ['accounts', 'Accounts'],
   ['categories', 'Categories'],
+  ['groups', 'Groups'],
   ['merchants', 'Merchant rules'],
   ['keywords', 'Slip keywords'],
 ];
@@ -139,13 +140,116 @@ function Accounts({ onError }: { onError: (m: string) => void }) {
   );
 }
 
+function Groups({ onError }: { onError: (m: string) => void }) {
+  const [list, setList] = useState<CategoryGroup[]>([]);
+  const [cats, setCats] = useState<Category[]>([]);
+  const [newName, setNewName] = useState('');
+  const load = () => {
+    api.groups().then(setList).catch((e) => onError(e.message));
+    api.categories().then(setCats).catch(() => undefined);
+  };
+  useEffect(load, []);
+
+  // Swap sort positions with the neighbour; renumbers so orders stay distinct.
+  const move = async (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= list.length) return;
+    const next = [...list];
+    [next[i], next[j]] = [next[j], next[i]];
+    try {
+      await Promise.all(next.map((g, k) => api.updateGroup(g.id, { name: g.name, sort_order: k })));
+      load();
+    } catch (e) {
+      onError((e as Error).message);
+    }
+  };
+
+  return (
+    <>
+      <div className="card">
+        <p className="small muted" style={{ marginTop: 0 }}>
+          Groups bundle spending categories for the dashboard and plan — e.g. <em>Fixed</em> (bond, rates, insurance),{' '}
+          <em>Living</em> (groceries, fuel, kids), <em>Lifestyle</em> (eating out, entertainment) — each with its own subtotal
+          and Home Assistant sensor. Budgets and reconciling stay per category. Pick a category’s group on the Categories tab.
+        </p>
+        <div className="row">
+          <input placeholder="New group" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <button
+            className="primary"
+            onClick={() =>
+              newName.trim() &&
+              api
+                .createGroup(newName.trim())
+                .then(() => {
+                  setNewName('');
+                  load();
+                })
+                .catch((e) => onError(e.message))
+            }
+          >
+            Add
+          </button>
+        </div>
+      </div>
+      <div className="card" style={{ padding: 0 }}>
+        <table>
+          <tbody>
+            {list.map((g, i) => (
+              <tr key={g.id}>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <button className="link" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">
+                    ▲
+                  </button>{' '}
+                  <button className="link" onClick={() => move(i, 1)} disabled={i === list.length - 1} aria-label="Move down">
+                    ▼
+                  </button>
+                </td>
+                <td>
+                  <input
+                    defaultValue={g.name}
+                    onBlur={(e) =>
+                      e.target.value.trim() &&
+                      e.target.value !== g.name &&
+                      api.updateGroup(g.id, { name: e.target.value.trim(), sort_order: g.sort_order }).then(load).catch((er) => onError(er.message))
+                    }
+                  />
+                </td>
+                <td className="small muted">
+                  {cats
+                    .filter((c) => c.group_id === g.id && !c.archived)
+                    .map((c) => `${c.icon ?? ''} ${c.name}`.trim())
+                    .join(', ') || 'No categories yet'}
+                </td>
+                <td>
+                  <button
+                    className="link danger small"
+                    onClick={() =>
+                      confirm(`Delete the group “${g.name}”? Its categories just become ungrouped.`) &&
+                      api.deleteGroup(g.id).then(load).catch((e) => onError(e.message))
+                    }
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {list.length === 0 && <div className="empty">No groups yet.</div>}
+      </div>
+    </>
+  );
+}
+
 function Categories({ onError }: { onError: (m: string) => void }) {
   const [list, setList] = useState<Category[]>([]);
   const [newName, setNewName] = useState('');
   const [newKind, setNewKind] = useState('expense');
+  const [groups, setGroups] = useState<CategoryGroup[]>([]);
   const load = () => api.categories().then(setList).catch((e) => onError(e.message));
   useEffect(() => {
     load();
+    api.groups().then(setGroups).catch(() => undefined);
   }, []);
 
   const patch = (c: Category, p: Partial<Category>) =>
@@ -194,6 +298,7 @@ function Categories({ onError }: { onError: (m: string) => void }) {
                 <th>Icon</th>
                 <th>Name</th>
                 <th>Kind</th>
+                <th>Group</th>
                 <th>Slip required</th>
                 <th>Colour</th>
                 <th>Archived</th>
@@ -216,6 +321,20 @@ function Categories({ onError }: { onError: (m: string) => void }) {
                       <option value="savings">Savings</option>
                       <option value="transfer">Transfer</option>
                     </select>
+                  </td>
+                  <td>
+                    {c.kind === 'expense' ? (
+                      <select value={c.group_id ?? ''} onChange={(e) => patch(c, { group_id: e.target.value || null })} aria-label="Group">
+                        <option value="">—</option>
+                        {groups.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="small muted">—</span>
+                    )}
                   </td>
                   <td>
                     <input type="checkbox" checked={Boolean(c.requires_slip)} onChange={(e) => patch(c, { requires_slip: e.target.checked ? 1 : 0 })} />
@@ -439,6 +558,7 @@ export default function Setup() {
       )}
       {tab === 'accounts' && <Accounts onError={setError} />}
       {tab === 'categories' && <Categories onError={setError} />}
+      {tab === 'groups' && <Groups onError={setError} />}
       {tab === 'merchants' && <Merchants onError={setError} />}
       {tab === 'keywords' && <Keywords onError={setError} />}
     </>

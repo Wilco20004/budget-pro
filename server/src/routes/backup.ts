@@ -17,6 +17,7 @@ const FORMAT = 'budgetpro-backup';
 const TABLES = [
   'settings',
   'accounts',
+  'category_groups',
   'categories',
   'budget_lines',
   'merchants',

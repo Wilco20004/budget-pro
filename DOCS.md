@@ -155,6 +155,12 @@ For the selected period:
   ▲ *Ahead of pace* and ⚠ *Over* are flagged.
 - **Last 6 periods**: income vs spending, with the planned spend marked.
 
+**Groups** (Setup → Groups) bundle spending categories, e.g. *Fixed* (bond,
+rates, insurance), *Living* (groceries, fuel, kids) and *Lifestyle* (eating
+out). The dashboard then shows each group's subtotal with its categories
+under it, and the Plan page subtotals by group. Groups are display-only:
+budgets and reconciling stay per category.
+
 ## Home Assistant sensors
 
 Updated on every change and every 5 minutes (turn off in Settings):
@@ -168,6 +174,7 @@ Updated on every change and every 5 minutes (turn off in Settings):
 | `sensor.budgetpro_days_left` | days until payday |
 | `sensor.budgetpro_to_reconcile` | uncategorised + needs slip |
 | `sensor.budgetpro_<category>_remaining` | per category (attr: planned, actual, pct_used, status) |
+| `sensor.budgetpro_group_<group>_remaining` | per category group, e.g. Living (same attributes) |
 
 E.g. notify when `sensor.budgetpro_groceries_remaining` drops below R500.
 

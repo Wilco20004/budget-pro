@@ -19,6 +19,30 @@ export interface CategoryKpi {
   projected: number;
   status: 'over' | 'ahead_of_pace' | 'on_track' | 'unplanned' | 'no_activity';
   transaction_count: number;
+  /** Display group (expense categories only). */
+  group_id: string | null;
+  group_name: string | null;
+}
+
+export interface GroupKpi {
+  /** null = expense categories not in any group (incl. Uncategorised). */
+  group_id: string | null;
+  name: string;
+  planned: number;
+  actual: number;
+  remaining: number;
+  pct_used: number | null;
+  pace_expected: number;
+  status: CategoryKpi['status'];
+  category_ids: (string | null)[];
+}
+
+function spendStatus(planned: number, actual: number, pace: number, fraction: number, income: boolean): CategoryKpi['status'] {
+  if (!planned && !actual) return 'no_activity';
+  if (!planned) return 'unplanned';
+  if (!income && actual > planned + 0.005) return 'over';
+  if (!income && fraction < 1 && actual > pace * 1.1 && actual - pace > 50) return 'ahead_of_pace';
+  return 'on_track';
 }
 
 export interface PeriodKpis {
@@ -54,6 +78,9 @@ export interface PeriodKpis {
     slip_coverage: number | null;
   };
   categories: CategoryKpi[];
+  /** Expense categories rolled up by display group, in group order;
+   *  ungrouped last. */
+  groups: GroupKpi[];
 }
 
 function r2(n: number) {
@@ -72,8 +99,9 @@ export function periodKpis(period: Period): PeriodKpis {
 
   const cats = db
     .prepare(
-      `SELECT c.*, COALESCE(b.amount, c.default_budget) AS planned
+      `SELECT c.*, COALESCE(b.amount, c.default_budget) AS planned, g.name AS group_name
        FROM categories c LEFT JOIN budget_lines b ON b.category_id = c.id AND b.period_start = ?
+       LEFT JOIN category_groups g ON g.id = c.group_id
        ORDER BY c.sort_order, c.name`
     )
     .all(period.start) as {
@@ -85,6 +113,8 @@ export function periodKpis(period: Period): PeriodKpis {
     requires_slip: number;
     archived: number;
     planned: number;
+    group_id: string | null;
+    group_name: string | null;
   }[];
 
   const sums = db
@@ -118,12 +148,7 @@ export function periodKpis(period: Period): PeriodKpis {
     const actual = r2(c.kind === 'income' ? signed : -signed);
     const planned = r2(c.planned || 0);
     const pace = r2(planned * fraction);
-    let status: CategoryKpi['status'];
-    if (!planned && !actual) status = 'no_activity';
-    else if (!planned) status = 'unplanned';
-    else if (c.kind !== 'income' && actual > planned + 0.005) status = 'over';
-    else if (c.kind !== 'income' && fraction < 1 && actual > pace * 1.1 && actual - pace > 50) status = 'ahead_of_pace';
-    else status = 'on_track';
+    const status = spendStatus(planned, actual, pace, fraction, c.kind === 'income');
     categories.push({
       category_id: c.id,
       name: c.name,
@@ -131,6 +156,8 @@ export function periodKpis(period: Period): PeriodKpis {
       color: c.color,
       icon: c.icon,
       requires_slip: Boolean(c.requires_slip),
+      group_id: c.kind === 'expense' ? c.group_id : null,
+      group_name: c.kind === 'expense' ? c.group_name : null,
       planned,
       actual,
       remaining: r2(planned - actual),
@@ -158,6 +185,8 @@ export function periodKpis(period: Period): PeriodKpis {
       projected: fraction > 0 ? r2(actual / fraction) : actual,
       status: 'unplanned',
       transaction_count: unassigned.n,
+      group_id: null,
+      group_name: null,
     });
   }
 
@@ -188,6 +217,29 @@ export function periodKpis(period: Period): PeriodKpis {
     )
     .get(period.start, period.end) as { n: number; with_slip: number };
 
+  // Roll expense categories up by display group, in the groups' own order.
+  const groupRows = db.prepare('SELECT id, name FROM category_groups ORDER BY sort_order, name').all() as { id: string; name: string }[];
+  const groups: GroupKpi[] = [...groupRows, { id: null, name: 'Other' }]
+    .map((g) => {
+      const members = categories.filter((c) => c.kind === 'expense' && (c.group_id ?? null) === g.id);
+      const planned = r2(members.reduce((a, c) => a + c.planned, 0));
+      const actual = r2(members.reduce((a, c) => a + c.actual, 0));
+      const pace = r2(planned * fraction);
+      return {
+        group_id: g.id,
+        name: g.name,
+        planned,
+        actual,
+        remaining: r2(planned - actual),
+        pct_used: planned ? r2((actual / planned) * 100) : null,
+        pace_expected: pace,
+        status: spendStatus(planned, actual, pace, fraction, false),
+        category_ids: members.map((c) => c.category_id),
+      };
+    })
+    // An empty "Other" is noise; an empty named group still shows (it's set up).
+    .filter((g) => g.group_id !== null || g.category_ids.length > 0);
+
   return {
     period,
     elapsed_days: elapsedDays,
@@ -216,6 +268,7 @@ export function periodKpis(period: Period): PeriodKpis {
       slip_coverage: slipTotal.n ? r2((slipTotal.with_slip / slipTotal.n) * 100) : null,
     },
     categories,
+    groups,
   };
 }
 

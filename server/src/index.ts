@@ -14,6 +14,7 @@ import { productsRouter, receiptsRouter } from './routes/receipts';
 import {
   accountsRouter,
   categoriesRouter,
+  groupsRouter,
   keywordsRouter,
   merchantsRouter,
   periodsRouter,
@@ -37,6 +38,7 @@ app.use('/api/periods', periodsRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/categories', categoriesRouter);
 app.use('/api/keywords', keywordsRouter);
+app.use('/api/groups', groupsRouter);
 app.use('/api/merchants', merchantsRouter);
 app.use('/api/budgets', budgetsRouter);
 app.use('/api/kpis', kpisRouter);

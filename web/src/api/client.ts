@@ -2,6 +2,7 @@ import {
   Account,
   BudgetLine,
   Category,
+  CategoryGroup,
   ImportRecord,
   ImportResult,
   Keyword,
@@ -137,6 +138,11 @@ export const api = {
   createCategory: (c: Partial<Category>) => request<Category>('api/categories', json('POST', c)),
   updateCategory: (id: string, c: Partial<Category>) => request<Category>(`api/categories/${id}`, json('PUT', c)),
   deleteCategory: (id: string) => request<void>(`api/categories/${id}`, json('DELETE')),
+
+  groups: () => request<CategoryGroup[]>('api/groups'),
+  createGroup: (name: string) => request<CategoryGroup>('api/groups', json('POST', { name })),
+  updateGroup: (id: string, g: { name: string; sort_order: number }) => request<CategoryGroup>(`api/groups/${id}`, json('PUT', g)),
+  deleteGroup: (id: string) => request<void>(`api/groups/${id}`, json('DELETE')),
 
   keywords: () => request<Keyword[]>('api/keywords'),
   createKeyword: (keyword: string, category_id: string) => request<void>('api/keywords', json('POST', { keyword, category_id })),
