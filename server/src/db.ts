@@ -347,6 +347,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_savings_movements_tx ON savings_movements(transaction_id);
 `);
 
+// 1.16.0: subcategories, one level deep (Groceries → Meat, Starch, …). A
+// subcategory has its own splits, slip lines and (optional) budget; its
+// parent's figures include it. It shares its parent's kind and group.
+if (!hasColumn('categories', 'parent_id')) {
+  db.exec('ALTER TABLE categories ADD COLUMN parent_id TEXT REFERENCES categories(id) ON DELETE SET NULL');
+}
+
 // 1.14.0: a personal category is one household member's spending money —
 // its budget is their allowance, and anything allocated to it is theirs.
 if (!hasColumn('categories', 'personal')) {

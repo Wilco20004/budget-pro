@@ -86,8 +86,8 @@ function buildServer(): McpServer {
 
   server.registerTool(
     'list_categories',
-    { title: 'List categories', description: 'All budget categories with kind, default budget and whether a slip is required. personal=1 marks a household member’s spending money (its budget is their allowance).', annotations: { readOnlyHint: true } },
-    async () => json(db.prepare('SELECT id, name, kind, requires_slip, default_budget, personal, archived FROM categories ORDER BY sort_order').all())
+    { title: 'List categories', description: 'All budget categories with kind, default budget and whether a slip is required. personal=1 marks a household member’s spending money (its budget is their allowance). parent_id marks a subcategory (Groceries → Meat); in period summaries a parent’s planned/actual include its subcategories, so don’t add them twice.', annotations: { readOnlyHint: true } },
+    async () => json(db.prepare('SELECT id, name, kind, parent_id, requires_slip, default_budget, personal, archived FROM categories ORDER BY sort_order').all())
   );
 
   server.registerTool(

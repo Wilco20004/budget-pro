@@ -35,6 +35,8 @@ export default function Budget() {
 
   // What a line plans in total: the amount typed in plus payment plan instalments due this period.
   const lineTotal = (l: BudgetLine) => (parseFloat(values[l.category_id]) || 0) + l.plans + l.goals;
+  const hasKids = (l: BudgetLine) => lines.some((x) => x.parent_id === l.category_id);
+  const kidsTotal = (l: BudgetLine) => lines.filter((x) => x.parent_id === l.category_id).reduce((a, x) => a + lineTotal(x), 0);
   const total = (kind: string) => lines.filter((l) => l.kind === kind).reduce((a, l) => a + lineTotal(l), 0);
   const income = total('income');
   const out = total('expense') + total('savings');
@@ -123,9 +125,15 @@ export default function Budget() {
                         </td>
                       </tr>
                     )}
-                    <tr>
+                    <tr className={l.parent_id ? 'sub-row' : undefined}>
                       <td>
+                        {l.parent_id && <span className="muted">↳ </span>}
                         <span className="icon">{l.icon}</span> {l.name}
+                        {hasKids(l) && (
+                          <div className="small muted">
+                            not split further · with subcategories {money(lineTotal(l) + kidsTotal(l), { whole: true })}
+                          </div>
+                        )}
                         {l.requires_slip ? <span className="small muted"> · slip required</span> : null}
                         {l.personal ? <span className="small muted"> · spending money</span> : null}
                         {l.goals > 0 && (

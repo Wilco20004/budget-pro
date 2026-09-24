@@ -7,7 +7,27 @@ import { money } from '../format';
 import { CategoryKpi, GroupKpi, PeriodKpis, SavingsOverview, TrendPoint } from '../types';
 
 /** A group's subtotal bar, followed by its categories. */
-function GroupBlock({ g, members, fraction }: { g: GroupKpi; members: CategoryKpi[]; fraction: number }) {
+/** A category's bar, then its subcategories' bars indented under it. */
+function WithChildren({ c, all, fraction }: { c: CategoryKpi; all: CategoryKpi[]; fraction: number }) {
+  const kids = all.filter((x) => x.parent_id && x.parent_id === c.category_id && x.status !== 'no_activity').sort((a, b) => b.actual - a.actual);
+  return (
+    <>
+      <Bullet c={c} fraction={fraction} />
+      {kids.length > 0 && (
+        <div className="bullets sub-bullets">
+          {kids.map((x) => (
+            <Bullet key={x.category_id} c={x} fraction={fraction} parent={c} />
+          ))}
+          {(c.own_actual ?? 0) > 0 && (
+            <div className="small muted">Not split further: {money(c.own_actual ?? 0, { whole: true })}</div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function GroupBlock({ g, members, all, fraction }: { g: GroupKpi; members: CategoryKpi[]; all: CategoryKpi[]; fraction: number }) {
   const shown = members.filter((c) => c.status !== 'no_activity').sort((a, b) => b.actual - a.actual);
   if (!shown.length && !g.planned) return null;
   const asKpi: CategoryKpi = {
@@ -27,6 +47,7 @@ function GroupBlock({ g, members, fraction }: { g: GroupKpi; members: CategoryKp
     transaction_count: 0,
     group_id: g.group_id,
     group_name: g.name,
+    parent_id: null,
     personal: false,
     plans_planned: members.reduce((a, c) => a + c.plans_planned, 0),
     goals_planned: 0,
@@ -36,15 +57,17 @@ function GroupBlock({ g, members, fraction }: { g: GroupKpi; members: CategoryKp
       <Bullet c={asKpi} fraction={fraction} header />
       <div className="bullets group-members">
         {shown.map((c) => (
-          <Bullet key={c.category_id ?? 'uncat'} c={c} fraction={fraction} />
+          <WithChildren key={c.category_id ?? 'uncat'} c={c} all={all} fraction={fraction} />
         ))}
       </div>
     </div>
   );
 }
 
-function Bullet({ c, fraction, header = false }: { c: CategoryKpi; fraction: number; header?: boolean }) {
-  const scale = Math.max(c.planned, c.actual, 1);
+function Bullet({ c, fraction, header = false, parent }: { c: CategoryKpi; fraction: number; header?: boolean; parent?: CategoryKpi }) {
+  // A subcategory without its own budget is drawn against its parent's, as a share of it.
+  const share = parent && !c.planned;
+  const scale = share ? Math.max(parent.planned, parent.actual, 1) : Math.max(c.planned, c.actual, 1);
   const pct = (v: number) => `${Math.min(100, (v / scale) * 100)}%`;
   const cls = c.status === 'over' ? 'over' : c.status === 'ahead_of_pace' ? 'ahead' : '';
   const note =
@@ -52,8 +75,10 @@ function Bullet({ c, fraction, header = false }: { c: CategoryKpi; fraction: num
       ? { text: `⚠ Over by ${money(-c.remaining)}`, color: 'var(--critical-text)' }
       : c.status === 'ahead_of_pace'
         ? { text: '▲ Ahead of pace', color: 'var(--warning-text)' }
-        : c.status === 'unplanned'
-          ? { text: 'Not budgeted', color: 'var(--muted)' }
+        : share && parent
+          ? { text: `part of ${parent.name}`, color: 'var(--muted)' }
+          : c.status === 'unplanned'
+            ? { text: 'Not budgeted', color: 'var(--muted)' }
           : c.planned
             ? { text: `${money(c.remaining)} left`, color: 'var(--ink-2)' }
             : null;
@@ -106,8 +131,8 @@ export default function Dashboard() {
   }, [selected?.start]);
 
   const t = k?.totals;
-  const expenses = k?.categories.filter((c) => c.kind === 'expense' && c.status !== 'no_activity') ?? [];
-  const savings = k?.categories.filter((c) => c.kind === 'savings' && c.status !== 'no_activity') ?? [];
+  const expenses = k?.categories.filter((c) => c.kind === 'expense' && !c.parent_id && c.status !== 'no_activity') ?? [];
+  const savings = k?.categories.filter((c) => c.kind === 'savings' && !c.parent_id && c.status !== 'no_activity') ?? [];
   const personal = k?.categories.filter((c) => c.personal && (c.planned || c.actual)) ?? [];
   const toDo = k ? k.recon.uncategorized + k.recon.needs_slip : 0;
 
@@ -280,13 +305,14 @@ export default function Dashboard() {
                         key={g.group_id ?? 'other'}
                         g={g}
                         members={k.categories.filter((c) => c.kind === 'expense' && g.category_ids.includes(c.category_id))}
+                        all={k.categories}
                         fraction={k.elapsed_fraction}
                       />
                     ))
                   : expenses
                       .slice()
                       .sort((a, b) => b.actual - a.actual)
-                      .map((c) => <Bullet key={c.category_id ?? 'uncat'} c={c} fraction={k.elapsed_fraction} />)}
+                      .map((c) => <WithChildren key={c.category_id ?? 'uncat'} c={c} all={k.categories} fraction={k.elapsed_fraction} />)}
               </div>
             )}
             {savings.length > 0 && (

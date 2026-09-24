@@ -7,6 +7,7 @@ import { emailStatus } from '../email/importer';
 import { inboxStatus } from '../inbox';
 import { claudeAvailable } from '../receipts/engines';
 import { autoCategorize, suggestMerchantPattern } from '../services/categorize';
+import { addStarterKeywords, resortIntoSubcategories } from '../services/subcategories';
 import { currentPeriod, periodFor, recentPeriods, nextPeriod } from '../services/periods';
 import { getAiModel, getApiToken, getSettings, regenerateApiToken, updateSettings } from '../settings';
 import { h, notFound, num, str } from '../util';
@@ -160,7 +161,27 @@ function categoryInput(body: Record<string, unknown>) {
     // Groups only apply to spending; other kinds are shown in their own sections.
     group_id: kind === 'expense' ? str(body.group_id) : null,
     personal: body.personal && kind === 'expense' ? 1 : 0,
+    parent_id: str(body.parent_id),
   };
+}
+
+type CategoryInput = ReturnType<typeof categoryInput>;
+
+/** A subcategory sits one level under a top-level category and takes its
+ *  kind and group from it. */
+function applyParent(c: CategoryInput, id: string | null) {
+  if (!c.parent_id) return;
+  if (c.parent_id === id) throw new Error('A category can’t be its own parent');
+  const p = db.prepare('SELECT id, kind, group_id, parent_id FROM categories WHERE id = ?').get(c.parent_id) as
+    | { id: string; kind: string; group_id: string | null; parent_id: string | null }
+    | undefined;
+  if (!p) throw new Error('Parent category not found');
+  if (p.parent_id) throw new Error('Subcategories go one level deep — pick a top-level category as the parent');
+  if (id && db.prepare('SELECT 1 FROM categories WHERE parent_id = ?').get(id)) {
+    throw new Error('This category has subcategories of its own, so it can’t become a subcategory');
+  }
+  c.kind = p.kind;
+  c.group_id = p.kind === 'expense' ? p.group_id : null;
 }
 
 /** Spending-money categories live in a "Personal" group unless placed elsewhere. */
@@ -178,6 +199,7 @@ categoriesRouter.post(
   '/',
   h((req, res) => {
     const c = categoryInput(req.body ?? {});
+    applyParent(c, null);
     if (c.personal && !c.group_id) c.group_id = personalGroupId();
     const id = uuid();
     const t = now();
@@ -185,10 +207,12 @@ categoriesRouter.post(
       c.sort_order = ((db.prepare('SELECT MAX(sort_order) AS m FROM categories').get() as { m: number | null }).m ?? 0) + 1;
     }
     db.prepare(
-      `INSERT INTO categories (id, name, kind, color, icon, requires_slip, default_budget, sort_order, archived, group_id, personal, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, c.personal, t, t);
-    res.status(201).json(db.prepare('SELECT * FROM categories WHERE id = ?').get(id));
+      `INSERT INTO categories (id, name, kind, color, icon, requires_slip, default_budget, sort_order, archived, group_id, personal, parent_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, c.personal, c.parent_id, t, t);
+    // Meat, Starch, Fruit & Veg, … under a parent get starter slip keywords.
+    const keywords_added = c.parent_id ? addStarterKeywords(id, c.name) : 0;
+    res.status(201).json({ ...(db.prepare('SELECT * FROM categories WHERE id = ?').get(id) as object), keywords_added });
   })
 );
 
@@ -196,15 +220,28 @@ categoriesRouter.put(
   '/:id',
   h((req, res) => {
     const c = categoryInput(req.body ?? {});
+    applyParent(c, String(req.params.id));
     const r = db
       .prepare(
-        `UPDATE categories SET name = ?, kind = ?, color = ?, icon = ?, requires_slip = ?, default_budget = ?, sort_order = ?, archived = ?, group_id = ?, personal = ?, updated_at = ?
+        `UPDATE categories SET name = ?, kind = ?, color = ?, icon = ?, requires_slip = ?, default_budget = ?, sort_order = ?, archived = ?, group_id = ?, personal = ?, parent_id = ?, updated_at = ?
          WHERE id = ?`
       )
-      .run(c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, c.personal, now(), req.params.id);
+      .run(c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, c.personal, c.parent_id, now(), req.params.id);
     if (!r.changes) notFound('Category not found');
+    // Subcategories follow their parent's kind and group.
+    db.prepare('UPDATE categories SET kind = ?, group_id = ? WHERE parent_id = ?').run(c.kind, c.kind === 'expense' ? c.group_id : null, req.params.id);
     publishSensors().catch(() => undefined);
     res.json(db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id));
+  })
+);
+
+/** Re-sorts the parent's existing slip lines into its subcategories by keyword. */
+categoriesRouter.post(
+  '/:id/resort',
+  h((req, res) => {
+    const r = resortIntoSubcategories(String(req.params.id));
+    publishSensors().catch(() => undefined);
+    res.json(r);
   })
 );
 

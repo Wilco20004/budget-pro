@@ -751,3 +751,14 @@ pre {
   background: var(--series-1);
   border-radius: 4px;
 }
+
+/* Subcategory bars, indented under their parent */
+.sub-bullets {
+  margin-left: 1.25rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--line);
+}
+
+.sub-row td:first-child {
+  padding-left: 1.5rem;
+}

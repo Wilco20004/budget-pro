@@ -28,6 +28,11 @@ export interface CategoryKpi {
   personal: boolean;
   /** Part of planned that comes from payment plan instalments due this period. */
   plans_planned: number;
+  /** Set on a subcategory; its parent's figures include it. */
+  parent_id: string | null;
+  /** On a parent: its own (not-split-further) actual and planned. */
+  own_actual?: number;
+  own_planned?: number;
   /** Part of planned that comes from savings goals' planned top-ups. */
   goals_planned: number;
 }
@@ -124,6 +129,7 @@ export function periodKpis(period: Period): PeriodKpis {
     group_id: string | null;
     group_name: string | null;
     personal: number;
+    parent_id: string | null;
   }[];
   const plans = planBudget(period).byCategory;
   const goals = goalBudget();
@@ -172,6 +178,7 @@ export function periodKpis(period: Period): PeriodKpis {
       group_id: c.kind === 'expense' ? c.group_id : null,
       group_name: c.kind === 'expense' ? c.group_name : null,
       personal: Boolean(c.personal),
+      parent_id: c.parent_id ?? null,
       plans_planned: r2(fromPlans),
       goals_planned: r2(fromGoals),
       planned,
@@ -204,13 +211,36 @@ export function periodKpis(period: Period): PeriodKpis {
       group_id: null,
       group_name: null,
       personal: false,
+      parent_id: null,
       plans_planned: 0,
       goals_planned: 0,
     });
   }
 
+  // Parents include their subcategories: Groceries = unsplit groceries + Meat + Starch + …
+  const byId = new Map(categories.map((c) => [c.category_id, c]));
+  for (const c of categories) if (c.parent_id && !byId.has(c.parent_id)) c.parent_id = null; // parent hidden (archived, unused)
+  for (const p of categories) {
+    const kids = categories.filter((c) => c.parent_id === p.category_id);
+    if (!kids.length) continue;
+    p.own_actual = p.actual;
+    p.own_planned = p.planned;
+    p.actual = r2(p.actual + kids.reduce((a, c) => a + c.actual, 0));
+    p.planned = r2(p.planned + kids.reduce((a, c) => a + c.planned, 0));
+    p.plans_planned = r2(p.plans_planned + kids.reduce((a, c) => a + c.plans_planned, 0));
+    p.goals_planned = r2(p.goals_planned + kids.reduce((a, c) => a + c.goals_planned, 0));
+    p.transaction_count += kids.reduce((a, c) => a + c.transaction_count, 0);
+    p.remaining = r2(p.planned - p.actual);
+    p.pct_used = p.planned ? r2((p.actual / p.planned) * 100) : null;
+    p.pace_expected = r2(p.planned * fraction);
+    p.projected = fraction > 0 ? r2(p.actual / fraction) : p.actual;
+    p.status = spendStatus(p.planned, p.actual, p.pace_expected, fraction, p.kind === 'income');
+  }
+  // Totals and group subtotals count top-level rows only (parents already include their children).
+  const top = categories.filter((c) => !c.parent_id);
+
   const sum = (kind: string, field: 'planned' | 'actual') =>
-    r2(categories.filter((c) => c.kind === kind).reduce((a, c) => a + c[field], 0));
+    r2(top.filter((c) => c.kind === kind).reduce((a, c) => a + c[field], 0));
   const uncategorisedIn = r2(unassigned.rest - unassigned.out_rest); // positive unassigned money in
   const income_actual = r2(sum('income', 'actual') + uncategorisedIn);
   const income_planned = sum('income', 'planned');
@@ -241,7 +271,7 @@ export function periodKpis(period: Period): PeriodKpis {
   const groupRows = db.prepare('SELECT id, name FROM category_groups ORDER BY sort_order, name').all() as { id: string; name: string }[];
   const groups: GroupKpi[] = [...groupRows, { id: null, name: 'Other' }]
     .map((g) => {
-      const members = categories.filter((c) => c.kind === 'expense' && (c.group_id ?? null) === g.id);
+      const members = top.filter((c) => c.kind === 'expense' && (c.group_id ?? null) === g.id);
       const planned = r2(members.reduce((a, c) => a + c.planned, 0));
       const actual = r2(members.reduce((a, c) => a + c.actual, 0));
       const pace = r2(planned * fraction);
@@ -299,7 +329,7 @@ export interface TrendPoint {
   expenses_planned: number;
   savings: number;
   net: number;
-  categories: { category_id: string | null; name: string; planned: number; actual: number }[];
+  categories: { category_id: string | null; name: string; parent_id: string | null; planned: number; actual: number }[];
 }
 
 export function trend(count: number, anchor?: Period): TrendPoint[] {
@@ -314,7 +344,7 @@ export function trend(count: number, anchor?: Period): TrendPoint[] {
       net: k.totals.net,
       categories: k.categories
         .filter((c) => c.kind !== 'income')
-        .map((c) => ({ category_id: c.category_id, name: c.name, planned: c.planned, actual: c.actual })),
+        .map((c) => ({ category_id: c.category_id, name: c.name, parent_id: c.parent_id, planned: c.planned, actual: c.actual })),
     };
   });
 }

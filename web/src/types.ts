@@ -20,6 +20,8 @@ export interface Category {
   group_id: string | null;
   /** 1 = a household member's spending money. */
   personal: number;
+  /** Set on a subcategory (Groceries → Meat). */
+  parent_id: string | null;
 }
 
 export interface Account {
@@ -126,6 +128,11 @@ export interface CategoryKpi {
   group_id: string | null;
   group_name: string | null;
   personal: boolean;
+  /** Set on a subcategory; the parent's figures include it. */
+  parent_id: string | null;
+  /** On a parent with subcategories: its own (unsplit) figures. */
+  own_actual?: number;
+  own_planned?: number;
   /** Part of planned from payment plan instalments due this period. */
   plans_planned: number;
   /** Part of planned from savings goals' planned top-ups. */
@@ -187,6 +194,7 @@ export interface BudgetLine {
   /** Added on top of planned by savings goals' planned top-ups. */
   goals: number;
   personal: number;
+  parent_id: string | null;
   previous_actual: number;
   group_id: string | null;
   group_name: string | null;

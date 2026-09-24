@@ -227,6 +227,31 @@ out). The dashboard then shows each group's subtotal with its categories
 under it, and the Plan page subtotals by group. Groups are display-only:
 budgets and reconciling stay per category.
 
+### Subcategories
+
+A category can be split one level further, e.g. Groceries → Meat, Starch,
+Fruit & Veg, Kitchen and Snacks & Sweets. In **Setup → Categories**, add the
+new category with *under Groceries* selected (or pick a parent for an
+existing category in the *Subcategory of* column). A subcategory takes its
+parent's kind and group.
+
+- **Slip lines** go to a subcategory by what BudgetPro learned about the
+  product, or else by slip keyword. Meat, Starch, Fruit & Veg, Kitchen
+  (pantry and baking staples, sauces, spices, coffee and tea, foil) and
+  Snacks & Sweets come with starter keywords; edit them under *Slip
+  keywords*. Lines that match nothing (milk, eggs, juice) stay in the
+  parent.
+- **Re-sort slip lines** (on the parent's row) moves slips you already
+  logged into the subcategories by keyword and re-splits their
+  transactions. Lines in other categories, like toilet rolls in Household,
+  are left alone.
+- **Budget** at either level. The parent's own amount on the Plan page
+  covers what isn't split further, and the parent's total includes its
+  subcategories. On the dashboard the parent's bar includes them, with each
+  subcategory's bar underneath. A subcategory without its own budget is
+  shown as a share of its parent's.
+- **Filtering** Transactions by a parent includes its subcategories.
+
 ### Payment plans
 
 For temporary commitments like PayJustNow, PayFlex or a medical account

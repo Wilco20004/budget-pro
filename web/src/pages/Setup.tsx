@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import CategorySelect from '../components/CategorySelect';
+import CategorySelect, { withChildren } from '../components/CategorySelect';
 import { money, shortDate } from '../format';
 import { Account, Category, CategoryGroup, Keyword, Merchant } from '../types';
 import ConfirmButton from '../components/ConfirmButton';
@@ -245,6 +245,8 @@ function Categories({ onError }: { onError: (m: string) => void }) {
   const [list, setList] = useState<Category[]>([]);
   const [newName, setNewName] = useState('');
   const [newKind, setNewKind] = useState('expense');
+  const [newParent, setNewParent] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
   const [groups, setGroups] = useState<CategoryGroup[]>([]);
   const load = () => api.categories().then(setList).catch((e) => onError(e.message));
   useEffect(() => {
@@ -263,7 +265,17 @@ function Categories({ onError }: { onError: (m: string) => void }) {
       <div className="card">
         <div className="row">
           <input placeholder="New category" value={newName} onChange={(e) => setNewName(e.target.value)} />
-          <select value={newKind} onChange={(e) => setNewKind(e.target.value)}>
+          <select value={newParent} onChange={(e) => setNewParent(e.target.value)} aria-label="Subcategory of">
+            <option value="">Top level</option>
+            {list
+              .filter((c) => !c.parent_id && !c.archived && c.kind !== 'transfer')
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  under {c.icon} {c.name}
+                </option>
+              ))}
+          </select>
+          <select value={newKind} onChange={(e) => setNewKind(e.target.value)} disabled={Boolean(newParent)}>
             <option value="expense">Expense</option>
             <option value="income">Income</option>
             <option value="savings">Savings</option>
@@ -274,9 +286,17 @@ function Categories({ onError }: { onError: (m: string) => void }) {
             onClick={() =>
               newName.trim() &&
               api
-                .createCategory({ name: newName.trim(), kind: newKind as Category['kind'] })
-                .then(() => {
+                .createCategory({
+                  name: newName.trim(),
+                  kind: newKind as Category['kind'],
+                  parent_id: newParent || null,
+                  // A subcategory needs a slip if its parent does.
+                  requires_slip: list.find((c) => c.id === newParent)?.requires_slip ?? 0,
+                })
+                .then((c) => {
                   setNewName('');
+                  const added = (c as Category & { keywords_added?: number }).keywords_added;
+                  setMsg(added ? `${c.name} added with ${added} starter slip keywords (Setup → Slip keywords).` : null);
                   load();
                 })
                 .catch((e) => onError(e.message))
@@ -286,10 +306,18 @@ function Categories({ onError }: { onError: (m: string) => void }) {
           </button>
         </div>
         <p className="small muted" style={{ marginBottom: 0 }}>
+          <strong>Subcategories</strong> (Top level → “under Groceries”) split a category further: Meat, Starch, … Slip lines go to
+          them by keyword or product, and the parent’s figures include them. Meat, Starch, Fruit &amp; Veg, Kitchen and Snacks &amp; Sweets
+          come with starter keywords.{' '}
           <strong>Slip required</strong> marks the “smart” categories: a transaction in one of them stays <em>Needs slip</em> until a
           till slip is attached, and the slip’s lines decide how it’s split (a Checkers run → Groceries + Kids + Medical).
         </p>
       </div>
+      {msg && (
+        <div className="notice" onClick={() => setMsg(null)}>
+          {msg}
+        </div>
+      )}
       <div className="card" style={{ padding: 0 }}>
         <div className="table-wrap">
           <table>
@@ -297,6 +325,7 @@ function Categories({ onError }: { onError: (m: string) => void }) {
               <tr>
                 <th>Icon</th>
                 <th>Name</th>
+                <th>Subcategory of</th>
                 <th>Kind</th>
                 <th>Group</th>
                 <th>Slip required</th>
@@ -306,8 +335,8 @@ function Categories({ onError }: { onError: (m: string) => void }) {
               </tr>
             </thead>
             <tbody>
-              {list.map((c) => (
-                <tr key={c.id} style={{ opacity: c.archived ? 0.55 : 1 }}>
+              {withChildren(list).map((c) => (
+                <tr key={c.id} className={c.parent_id ? 'sub-row' : undefined} style={{ opacity: c.archived ? 0.55 : 1 }}>
                   <td>
                     <input defaultValue={c.icon ?? ''} style={{ width: '3rem' }} onBlur={(e) => e.target.value !== (c.icon ?? '') && patch(c, { icon: e.target.value })} />
                   </td>
@@ -315,7 +344,34 @@ function Categories({ onError }: { onError: (m: string) => void }) {
                     <input defaultValue={c.name} onBlur={(e) => e.target.value !== c.name && patch(c, { name: e.target.value })} />
                   </td>
                   <td>
-                    <select value={c.kind} onChange={(e) => patch(c, { kind: e.target.value as Category['kind'] })}>
+                    {list.some((x) => x.parent_id === c.id) ? (
+                      <button
+                        className="small"
+                        title="Move slip lines still in this category into its subcategories, by keyword"
+                        onClick={() =>
+                          api
+                            .resortCategory(c.id)
+                            .then((r) => setMsg(`Moved ${r.lines} slip line(s) into subcategories; ${r.receipts} transaction(s) re-split.`))
+                            .catch((e) => onError(e.message))
+                        }
+                      >
+                        Re-sort slip lines
+                      </button>
+                    ) : (
+                      <select value={c.parent_id ?? ''} onChange={(e) => patch(c, { parent_id: e.target.value || null })} aria-label="Subcategory of">
+                        <option value="">—</option>
+                        {list
+                          .filter((p) => p.id !== c.id && !p.parent_id && p.kind !== 'transfer' && (!p.archived || p.id === c.parent_id))
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.icon} {p.name}
+                            </option>
+                          ))}
+                      </select>
+                    )}
+                  </td>
+                  <td>
+                    <select value={c.kind} disabled={Boolean(c.parent_id)} onChange={(e) => patch(c, { kind: e.target.value as Category['kind'] })}>
                       <option value="expense">Expense</option>
                       <option value="income">Income</option>
                       <option value="savings">Savings</option>
@@ -324,7 +380,7 @@ function Categories({ onError }: { onError: (m: string) => void }) {
                   </td>
                   <td>
                     {c.kind === 'expense' ? (
-                      <select value={c.group_id ?? ''} onChange={(e) => patch(c, { group_id: e.target.value || null })} aria-label="Group">
+                      <select value={c.group_id ?? ''} onChange={(e) => patch(c, { group_id: e.target.value || null })} aria-label="Group" disabled={Boolean(c.parent_id)} title={c.parent_id ? "A subcategory is in its parent’s group" : undefined}>
                         <option value="">—</option>
                         {groups.map((g) => (
                           <option key={g.id} value={g.id}>

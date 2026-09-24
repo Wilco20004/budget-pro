@@ -1,5 +1,18 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.16.0 — 2026-09-24
+
+- **Subcategories**, one level deep (Groceries → Meat, Starch, Fruit &
+  Veg, Kitchen, Snacks & Sweets). A parent's planned and actual include
+  its subcategories; the dashboard nests their bars under the parent, and
+  the Plan page lists them indented, budgetable at either level. Category
+  pickers show them under their parent, and filtering by a parent
+  includes them.
+- Those five subcategory names come with starter slip keywords, and
+  **Re-sort slip lines** moves already-logged slip lines into them and
+  re-splits the transactions. Every keyword competes, so toilet rolls
+  stay in Household.
+
 ## 1.15.0 — 2026-09-24
 
 - **Savings goals** (new Savings page): target, target date and a planned

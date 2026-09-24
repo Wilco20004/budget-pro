@@ -51,8 +51,11 @@ export function queryTransactions(q: TxQuery) {
     params.push(q.payment_plan_id);
   }
   if (q.category_id) {
-    where.push('EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = t.id AND s.category_id = ?)');
-    params.push(q.category_id);
+    // A parent category includes its subcategories.
+    where.push(
+      'EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = t.id AND (s.category_id = ? OR s.category_id IN (SELECT id FROM categories WHERE parent_id = ?)))'
+    );
+    params.push(q.category_id, q.category_id);
   }
   if (q.q) {
     where.push('(t.description LIKE ? OR t.notes LIKE ?)');

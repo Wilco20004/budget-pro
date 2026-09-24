@@ -21,12 +21,16 @@ budgetsRouter.get(
     const goals = goalBudget();
     const rows = db
       .prepare(
-        `SELECT c.id AS category_id, c.name, c.kind, c.icon, c.color, c.requires_slip, c.default_budget, c.personal,
+        `SELECT c.id AS category_id, c.name, c.kind, c.icon, c.color, c.requires_slip, c.default_budget, c.personal, c.parent_id,
                 b.amount AS override, c.group_id, g.name AS group_name
          FROM categories c LEFT JOIN budget_lines b ON b.category_id = c.id AND b.period_start = ?
          LEFT JOIN category_groups g ON g.id = c.group_id
          WHERE c.archived = 0 AND c.kind != 'transfer'
-         ORDER BY COALESCE(g.sort_order, 999999), c.sort_order, c.name`
+         ORDER BY COALESCE(g.sort_order, 999999),
+                  -- a subcategory sorts right after its parent
+                  COALESCE((SELECT p.sort_order FROM categories p WHERE p.id = c.parent_id), c.sort_order),
+                  COALESCE((SELECT p.name FROM categories p WHERE p.id = c.parent_id), c.name),
+                  c.parent_id IS NOT NULL, c.sort_order, c.name`
       )
       .all(period.start) as { category_id: string; kind: string; default_budget: number; override: number | null }[];
     res.json({

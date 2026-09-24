@@ -163,6 +163,7 @@ export const api = {
   createCategory: (c: Partial<Category>) => request<Category>('api/categories', json('POST', c)),
   updateCategory: (id: string, c: Partial<Category>) => request<Category>(`api/categories/${id}`, json('PUT', c)),
   deleteCategory: (id: string) => request<void>(`api/categories/${id}`, json('DELETE')),
+  resortCategory: (id: string) => request<{ lines: number; receipts: number }>(`api/categories/${id}/resort`, json('POST')),
 
   groups: () => request<CategoryGroup[]>('api/groups'),
   createGroup: (name: string) => request<CategoryGroup>('api/groups', json('POST', { name })),
