@@ -97,23 +97,23 @@ Import → Email inbox shows what arrived and what became of it.
 your WhatsApp business number and it becomes a slip (a statement PDF is
 imported as a statement). Set up under Import → WhatsApp:
 
-1. **Allowed numbers**: your own WhatsApp numbers (e.g. ).
+1. **Allowed numbers**: your own WhatsApp numbers (e.g. `082 123 4567`).
    A business number hears from anyone, so photos from any other number are
    ignored and never downloaded — only their last four digits are logged.
 2. On the platform, set the channel's **CallbackUrl** to
-    (no trailing slash;
-   the platform adds ), with auth mode **Custom header**,
-   Name  and the key shown on the card.
+   `https://<your public address>/webhooks/whatsapp` (no trailing slash;
+   the platform adds `/WhatsappReceived`), with auth mode **Custom header**,
+   Name `X-Api-Key` and the key shown on the card.
 3. The platform is on the internet, so that address must reach port 8097
    over HTTPS — a reverse proxy or a Cloudflare tunnel that forwards **only**
-   . Keep the rest of port 8097 on your network.
+   `/webhooks/whatsapp`. Keep the rest of port 8097 on your network.
 
 Only *Message received* callbacks with a photo or document are used; every
 other event is acknowledged and dropped. Deliveries are acknowledged at once
 and processed afterwards, and retries are recognised by the message ID.
 Media is only downloaded from the platform address set on the card. If the
 platform needs a credential to download media, put it in the add-on option
- as . A photo's caption becomes
+`whatsapp_media_header` as `Header-Name: value`. A photo's caption becomes
 the slip's name.
 
 **Phone notifications (Android, Discovery Bank)** — for day-to-day figures
