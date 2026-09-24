@@ -601,3 +601,9 @@ for (const [col, def] of [
 if (!hasColumn('accounts', 'debt_category_id')) {
   db.exec('ALTER TABLE accounts ADD COLUMN debt_category_id TEXT REFERENCES categories(id) ON DELETE SET NULL');
 }
+
+// 1.21.0: a card that's cleared in full every month (spending runs off it
+// for rewards) isn't debt to pay down: no Debt repayments line, no paydown.
+if (!hasColumn('accounts', 'paid_in_full')) {
+  db.exec('ALTER TABLE accounts ADD COLUMN paid_in_full INTEGER NOT NULL DEFAULT 0');
+}

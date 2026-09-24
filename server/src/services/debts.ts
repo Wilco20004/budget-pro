@@ -29,6 +29,8 @@ interface AccountRow {
   interest_rate: number | null;
   credit_limit: number | null;
   debt_category_id: string | null;
+  /** Cleared in full every month: a spending card, not debt to pay down. */
+  paid_in_full: number;
 }
 
 function nextSortOrder(): number {
@@ -39,7 +41,7 @@ function nextSortOrder(): number {
  *  account, and the Debt repayments parent if it's missing. */
 export function ensureDebtCategories(): Map<string, string> {
   const out = new Map<string, string>();
-  const accounts = db.prepare("SELECT * FROM accounts WHERE type IN ('credit', 'loan')").all() as AccountRow[];
+  const accounts = db.prepare("SELECT * FROM accounts WHERE type IN ('credit', 'loan') AND paid_in_full = 0").all() as AccountRow[];
   if (!accounts.length) return out;
   const t = new Date().toISOString();
   db.transaction(() => {
@@ -88,6 +90,29 @@ function plannedFor(a: AccountRow, period: Period): number {
 
 /** Sets the planned repayment from now on: the subcategory's default, with
  *  this and later periods' one-off amounts cleared so it applies. */
+/** Marks a card as cleared in full every month (or not). Turning it on
+ *  puts its fee lines back in Bank fees and archives its Debt repayments
+ *  line; turning it off makes (or restores) that line. */
+export function setPaidInFull(accountId: string, on: boolean) {
+  const a = db.prepare('SELECT * FROM accounts WHERE id = ?').get(accountId) as AccountRow | undefined;
+  if (!a) return;
+  db.transaction(() => {
+    db.prepare('UPDATE accounts SET paid_in_full = ? WHERE id = ?').run(on ? 1 : 0, accountId);
+    if (!a.debt_category_id) return;
+    if (on) {
+      const fees = categoryId("name = 'Bank fees'");
+      if (fees) db.prepare('UPDATE transaction_splits SET category_id = ? WHERE category_id = ?').run(fees, a.debt_category_id);
+      db.prepare('UPDATE categories SET archived = 1 WHERE id = ?').run(a.debt_category_id);
+    } else {
+      db.prepare('UPDATE categories SET archived = 0 WHERE id = ?').run(a.debt_category_id);
+    }
+  })();
+  if (!on) {
+    ensureDebtCategories();
+    moveDebtCosts();
+  }
+}
+
 export function setPlannedPayment(accountId: string, amount: number | null) {
   const cat = ensureDebtCategories().get(accountId);
   db.prepare('UPDATE accounts SET planned_payment = ? WHERE id = ?').run(amount, accountId);
@@ -101,7 +126,7 @@ export function paydownByCategory(period: Period): Map<string, number> {
   const out = new Map<string, number>();
   const today = todayIso();
   if (period.start > today) return out;
-  for (const a of db.prepare("SELECT * FROM accounts WHERE type IN ('credit', 'loan') AND debt_category_id IS NOT NULL").all() as AccountRow[]) {
+  for (const a of db.prepare("SELECT * FROM accounts WHERE type IN ('credit', 'loan') AND paid_in_full = 0 AND debt_category_id IS NOT NULL").all() as AccountRow[]) {
     const start = owedAt(a.id, addDays(period.start, -1));
     const end = owedAt(a.id, period.end < today ? period.end : today);
     if (start === null || end === null) continue;
@@ -185,7 +210,14 @@ export function describeDebt(a: AccountRow, period: Period = currentPeriod()) {
   // Fees and cover come out of each repayment before it reaches interest
   // and capital, so they don't count towards paying the balance off.
   const otherCosts = r2(prev.costs - prev.interest);
-  const p = owed !== null ? payoff(owed, r2(planned - otherCosts), a.interest_rate) : null;
+  const p = owed !== null && !a.paid_in_full ? payoff(owed, r2(planned - otherCosts), a.interest_rate) : null;
+  // A spending card: cleared = its balance hit (about) zero this period.
+  const lowest = a.paid_in_full
+    ? (db
+        .prepare('SELECT MAX(balance) AS b FROM transactions WHERE account_id = ? AND date BETWEEN ? AND ? AND balance IS NOT NULL')
+        .get(a.id, period.start, period.end) as { b: number | null }).b
+    : null;
+  const cleared = lowest !== null && lowest >= -1;
   return {
     account_id: a.id,
     name: a.name,
@@ -207,7 +239,21 @@ export function describeDebt(a: AccountRow, period: Period = currentPeriod()) {
     /** Of the planned repayment, what's expected to reduce the balance —
      *  last period's interest, fees and purchases on the account come off it. */
     planned_paydown: planned ? r2(Math.max(0, planned - prev.costs - prev.purchases)) : 0,
-    status: !planned ? 'no_plan' : now.paid >= planned - 0.5 ? 'paid' : period.end < today ? 'short' : 'due',
+    paid_in_full: Boolean(a.paid_in_full),
+    cleared: a.paid_in_full ? cleared : null,
+    status: a.paid_in_full
+      ? cleared
+        ? 'cleared'
+        : period.end < today
+          ? 'not_cleared'
+          : 'due'
+      : !planned
+        ? 'no_plan'
+        : now.paid >= planned - 0.5
+          ? 'paid'
+          : period.end < today
+            ? 'short'
+            : 'due',
     payoff: p ? { ...p, date: p.months ? addMonths(today, p.months) : null } : null,
     history: recentPeriods(6, period).map((q) => ({ period: q.start, label: q.label, owed: owedAt(a.id, q.end < today ? q.end : today) })),
   };
@@ -217,7 +263,8 @@ export function debtOverview(period: Period = currentPeriod()) {
   const debts = (db.prepare(`SELECT * FROM accounts WHERE type IN (${DEBT_TYPES.map(() => '?').join(',')}) ORDER BY name`).all(...DEBT_TYPES) as AccountRow[]).map(
     (a) => describeDebt(a, period)
   );
-  const sum = (f: (d: (typeof debts)[number]) => number | null | undefined) => r2(debts.reduce((s, d) => s + (f(d) ?? 0), 0));
+  const real = debts.filter((d) => !d.paid_in_full);
+  const sum = (f: (d: (typeof debts)[number]) => number | null | undefined) => r2(real.reduce((s, d) => s + (f(d) ?? 0), 0));
   return {
     period,
     debts,
@@ -241,7 +288,7 @@ export function categorizeDebtLines(ids: string[]): number {
   const debtCats = ensureDebtCategories();
   const tx = db.prepare(
     `SELECT t.id, t.amount, t.description, a.type, a.id AS account_id FROM transactions t JOIN accounts a ON a.id = t.account_id
-     WHERE t.id = ? AND a.type IN ('credit', 'loan') AND NOT EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = t.id)`
+     WHERE t.id = ? AND a.type IN ('credit', 'loan') AND a.paid_in_full = 0 AND NOT EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = t.id)`
   );
   const ins = db.prepare("INSERT INTO transaction_splits (id, transaction_id, category_id, amount, source) VALUES (?, ?, ?, ?, 'rule')");
   let n = 0;
@@ -352,7 +399,7 @@ function moveDebtCosts(): number {
       `SELECT s.id, t.account_id, t.description FROM transaction_splits s
        JOIN transactions t ON t.id = s.transaction_id JOIN accounts a ON a.id = t.account_id
        JOIN categories c ON c.id = s.category_id
-       WHERE a.type IN ('credit', 'loan') AND t.amount < 0 AND c.name IN ('Bank fees', 'Insurance')`
+       WHERE a.type IN ('credit', 'loan') AND a.paid_in_full = 0 AND t.amount < 0 AND c.name IN ('Bank fees', 'Insurance')`
     )
     .all() as { id: string; account_id: string; description: string }[];
   const set = db.prepare("UPDATE transaction_splits SET category_id = ?, source = 'rule' WHERE id = ?");

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db, now } from '../db';
 import { publishSensors } from '../ha';
-import { debtOverview, ensureDebtCategories, recheckDebtLines, setPlannedPayment } from '../services/debts';
+import { debtOverview, ensureDebtCategories, recheckDebtLines, setPaidInFull, setPlannedPayment } from '../services/debts';
 import { resolvePeriod } from '../services/periods';
 import { h, notFound, num, round2 } from '../util';
 
@@ -17,7 +17,8 @@ debtsRouter.get(
 );
 
 /** The plan for one debt account. Body: any of planned_payment,
- *  interest_rate (annual %), credit_limit — null clears one. */
+ *  interest_rate (annual %), credit_limit — null clears one — and
+ *  paid_in_full (a card cleared every month: not debt to pay down). */
 debtsRouter.patch(
   '/:accountId',
   h((req, res) => {
@@ -26,6 +27,7 @@ debtsRouter.patch(
     const body = req.body ?? {};
     const value = (v: unknown) => (v === null || v === '' ? null : round2(Math.abs(num(v))));
     // The planned repayment is the debt's Debt repayments budget line.
+    if ('paid_in_full' in body) setPaidInFull(id, Boolean(body.paid_in_full));
     if ('planned_payment' in body) setPlannedPayment(id, value(body.planned_payment));
     for (const col of ['interest_rate', 'credit_limit']) {
       if (col in body) db.prepare(`UPDATE accounts SET ${col} = ?, updated_at = ? WHERE id = ?`).run(value(body[col]), now(), id);

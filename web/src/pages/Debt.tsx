@@ -10,6 +10,8 @@ const STATUS: Record<DebtAccount['status'], { text: string; color: string } | nu
   paid: { text: '✓ Paid as planned', color: 'var(--good-text)' },
   due: { text: 'Not paid yet', color: 'var(--ink-2)' },
   short: { text: '⚠ Paid less than planned', color: 'var(--critical-text)' },
+  cleared: { text: '✓ Cleared this period', color: 'var(--good-text)' },
+  not_cleared: { text: '⚠ Not cleared this period', color: 'var(--critical-text)' },
 };
 
 function monthYear(iso: string) {
@@ -39,7 +41,34 @@ function PlanInput({ label, value, suffix, onSave }: { label: string; value: num
   );
 }
 
-function DebtCard({ d, onSave }: { d: DebtAccount; onSave: (p: Partial<Record<'planned_payment' | 'interest_rate' | 'credit_limit', number | null>>) => void }) {
+type DebtPatch = Partial<Record<'planned_payment' | 'interest_rate' | 'credit_limit', number | null>> & { paid_in_full?: boolean };
+
+/** A card that's cleared in full every month: spending runs off it. */
+function SpendingCard({ d, onSave }: { d: DebtAccount; onSave: (p: DebtPatch) => void }) {
+  const status = STATUS[d.status];
+  return (
+    <div className="card">
+      <div className="row" style={{ alignItems: 'baseline' }}>
+        <h2 style={{ margin: 0 }}>{d.name}</h2>
+        <span className="small muted">spending card · cleared every month</span>
+        <span className="spacer" />
+        <span className="small muted">balance</span>
+        <strong>{d.owed === null ? '—' : money(d.owed, { whole: true })}</strong>
+      </div>
+      <p className="small" style={{ marginBottom: 0 }}>
+        {status && <span style={{ color: status.color }}>{status.text}</span>} · spent on it this period{' '}
+        {money(d.this_period.purchases + d.this_period.costs)} (in their own categories) · paid in {money(d.this_period.paid)}
+      </p>
+      <label className="row small" style={{ gap: 4, marginTop: 6 }}>
+        <input type="checkbox" checked onChange={() => onSave({ paid_in_full: false })} />
+        Cleared in full every month — not debt (untick to plan it as debt)
+      </label>
+    </div>
+  );
+}
+
+function DebtCard({ d, onSave }: { d: DebtAccount; onSave: (p: DebtPatch) => void }) {
+  if (d.paid_in_full) return <SpendingCard d={d} onSave={onSave} />;
   const status = STATUS[d.status];
   const p = d.this_period;
   const known = d.history.filter((h) => h.owed !== null);
@@ -71,6 +100,12 @@ function DebtCard({ d, onSave }: { d: DebtAccount; onSave: (p: Partial<Record<'p
         <PlanInput label="Interest rate" value={d.interest_rate} suffix="% a year" onSave={(v) => onSave({ interest_rate: v })} />
         {d.type === 'credit' && <PlanInput label="Credit limit" value={d.credit_limit} onSave={(v) => onSave({ credit_limit: v })} />}
       </div>
+      {d.type === 'credit' && (
+        <label className="row small" style={{ gap: 4, marginTop: 6 }}>
+          <input type="checkbox" checked={false} onChange={() => onSave({ paid_in_full: true })} />
+          Cleared in full every month (a spending card — e.g. for rewards), not debt
+        </label>
+      )}
 
       <table className="small" style={{ marginTop: '0.5rem' }}>
         <tbody>

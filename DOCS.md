@@ -320,6 +320,12 @@ How it counts in the budget:
   loan) are paid straight from your account, so they stay as Debt repayments
   spending.
 
+**Spending cards.** A credit card that's cleared in full every month, with
+day-to-day spending run off it (for rewards like Vitality), isn't debt.
+Tick *Cleared in full every month* on its Debt page card. It then has no
+line under Debt repayments and no paydown or payoff estimate, and its fees
+are Bank fees. The Debt page shows whether it was cleared this period.
+
 *Re-check repayments*, at the bottom of the Debt page, moves debt costs
 filed earlier (Bank fees, Insurance) to each debt's own line and pairs up
 earlier repayments.

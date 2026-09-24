@@ -276,7 +276,9 @@ export interface DebtAccount {
   utilisation: number | null;
   this_period: { paid: number; costs: number; purchases: number; paid_down: number | null; owed_start: number | null };
   planned_paydown: number;
-  status: 'no_plan' | 'paid' | 'short' | 'due';
+  paid_in_full: boolean;
+  cleared: boolean | null;
+  status: 'no_plan' | 'paid' | 'short' | 'due' | 'cleared' | 'not_cleared';
   payoff: { months: number | null; interest: number | null; never: boolean; date: string | null } | null;
   history: { period: string; label: string; owed: number | null }[];
 }

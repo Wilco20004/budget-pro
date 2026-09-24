@@ -141,7 +141,7 @@ export const api = {
   deletePaymentPlan: (id: string) => request<void>(`api/payment-plans/${id}`, json('DELETE')),
 
   debts: (period?: string) => request<DebtOverview>(`api/debts${qs({ period })}`),
-  updateDebt: (accountId: string, p: { planned_payment?: number | null; interest_rate?: number | null; credit_limit?: number | null }) =>
+  updateDebt: (accountId: string, p: { planned_payment?: number | null; interest_rate?: number | null; credit_limit?: number | null; paid_in_full?: boolean }) =>
     request<DebtOverview>(`api/debts/${accountId}`, json('PATCH', p)),
   recheckDebts: () => request<{ refiled: number; paired: number }>('api/debts/recheck', json('POST')),
 

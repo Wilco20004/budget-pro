@@ -1,5 +1,12 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.21.0 — 2026-09-24
+
+- **Spending cards**: tick *Cleared in full every month* on a card that's
+  paid off each payday and used for day-to-day spending. It's no longer
+  treated as debt: no Debt repayments line or paydown, its fees stay in
+  Bank fees, and the Debt page shows whether it was cleared this period.
+
 ## 1.20.0 — 2026-09-24
 
 - **Debts on the Plan page**: every tracked card and loan is its own line
