@@ -1,5 +1,22 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.19.0 — 2026-09-24
+
+- **Debt page**: every credit card and loan with owed, limit and
+  utilisation, a planned repayment and interest rate, this period's
+  payments, cost of debt and purchases, how much the balance moved, a
+  payoff estimate and a six-period history.
+- Repayments into tracked cards and loans are paired with the paying
+  account's line and counted as transfers. Only interest, fees and cover
+  are spending, and the rest is **debt paydown**, planned alongside
+  savings on the Plan page and included in Net.
+- The **Plan page** has a *This period* column next to *Last period* and
+  *Planned*.
+- Fix: FNB card statements list lines out of date order, so the running
+  balances (and the owed amount) were wrong. Rows are now dated in order,
+  and existing card imports are rebuilt by *Re-check repayments*.
+  Statement lines are also inserted in file order.
+
 ## 1.18.0 — 2026-09-24
 
 - **Borrowed money**: a new category kind (a *Borrowed* category is

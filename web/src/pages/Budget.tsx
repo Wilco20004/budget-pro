@@ -3,7 +3,8 @@ import { api } from '../api/client';
 import PaymentPlans from '../components/PaymentPlans';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import { money } from '../format';
-import { BudgetLine, PaymentPlan } from '../types';
+import { Link } from 'react-router-dom';
+import { BudgetLine, DebtOverview, PaymentPlan } from '../types';
 
 const KIND_TITLE: Record<string, string> = { income: 'Expected income', expense: 'Spending', savings: 'Savings' };
 
@@ -11,6 +12,7 @@ export default function Budget() {
   const { selected } = usePeriod();
   const [lines, setLines] = useState<BudgetLine[]>([]);
   const [plans, setPlans] = useState<PaymentPlan[]>([]);
+  const [debts, setDebts] = useState<DebtOverview | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [setDefault, setSetDefault] = useState(true);
   const [dirty, setDirty] = useState(false);
@@ -32,6 +34,9 @@ export default function Budget() {
       .catch((e) => setError(e.message));
   };
   useEffect(() => load(), [selected?.start]);
+  useEffect(() => {
+    if (selected) api.debts(selected.start).then(setDebts).catch(() => setDebts(null));
+  }, [selected?.start]);
 
   // What a line plans in total: the amount typed in plus payment plan instalments due this period.
   const lineTotal = (l: BudgetLine) => (parseFloat(values[l.category_id]) || 0) + l.plans + l.goals;
@@ -39,7 +44,10 @@ export default function Budget() {
   const kidsTotal = (l: BudgetLine) => lines.filter((x) => x.parent_id === l.category_id).reduce((a, x) => a + lineTotal(x), 0);
   const total = (kind: string) => lines.filter((l) => l.kind === kind).reduce((a, l) => a + lineTotal(l), 0);
   const income = total('income');
-  const out = total('expense') + total('savings');
+  // Repayments to tracked cards/loans: their costs are in Bank fees etc.; what
+  // pays the balance down is planned here, like savings.
+  const paydown = debts?.totals.planned_paydown ?? 0;
+  const out = total('expense') + total('savings') + paydown;
 
   async function save() {
     if (!selected) return;
@@ -77,7 +85,7 @@ export default function Budget() {
         <div className="tile">
           <div className="label">Planned out</div>
           <div className="value">{money(out, { whole: true })}</div>
-          <div className="sub">spending + savings</div>
+          <div className="sub">spending + savings{paydown ? ' + debt paydown' : ''}</div>
         </div>
         <div className="tile">
           <div className="label">Unallocated</div>
@@ -99,7 +107,8 @@ export default function Budget() {
                 <thead>
                   <tr>
                     <th>Category</th>
-                    <th className="num">Last period actual</th>
+                    <th className="num">Last period</th>
+                    <th className="num">This period</th>
                     <th className="num">Planned</th>
                   </tr>
                 </thead>
@@ -112,6 +121,12 @@ export default function Budget() {
                         <td className="num">
                           {money(
                             ls.filter((x) => x.group_id === l.group_id).reduce((a, x) => a + x.previous_actual, 0),
+                            { whole: true }
+                          )}
+                        </td>
+                        <td className="num">
+                          {money(
+                            ls.filter((x) => x.group_id === l.group_id).reduce((a, x) => a + x.actual, 0),
                             { whole: true }
                           )}
                         </td>
@@ -155,6 +170,12 @@ export default function Budget() {
                           {money(l.previous_actual, { whole: true })}
                         </button>
                       </td>
+                      <td
+                        className="num small"
+                        style={{ color: kind !== 'income' && l.actual > lineTotal(l) + 0.5 && lineTotal(l) > 0 ? 'var(--critical-text)' : undefined }}
+                      >
+                        {money(l.actual, { whole: true })}
+                      </td>
                       <td className="num">
                         <input
                           type="number"
@@ -180,6 +201,44 @@ export default function Budget() {
 
       {selected && (
         <PaymentPlans periodStart={selected.start} plans={plans} categories={lines} onChange={() => load(true)} />
+      )}
+
+      {debts && debts.debts.length > 0 && (
+        <div className="card">
+          <div className="row" style={{ marginBottom: '0.25rem' }}>
+            <h2 style={{ margin: 0 }}>Debt paydown</h2>
+            <span className="spacer" />
+            <Link to="/debt" className="small">
+              Plan repayments
+            </Link>
+          </div>
+          <p className="small muted" style={{ marginTop: 0 }}>
+            Repayments to your tracked cards and loans. Their interest and fees are spending (in Bank fees); the rest pays the
+            balance down and is planned here, like savings.
+          </p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th className="num">Owed</th>
+                  <th className="num">Repayment</th>
+                  <th className="num">Pays down</th>
+                </tr>
+              </thead>
+              <tbody>
+                {debts.debts.map((d) => (
+                  <tr key={d.account_id}>
+                    <td>{d.name}</td>
+                    <td className="num">{d.owed === null ? '—' : money(d.owed, { whole: true })}</td>
+                    <td className="num">{d.planned_payment ? money(d.planned_payment, { whole: true }) : <Link to="/debt" className="small">set</Link>}</td>
+                    <td className="num">{money(d.planned_paydown, { whole: true })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       <div className="row">

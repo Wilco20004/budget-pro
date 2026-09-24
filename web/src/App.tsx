@@ -5,6 +5,7 @@ import { PeriodProvider } from './components/PeriodContext';
 import { setCurrency } from './format';
 import Budget from './pages/Budget';
 import Savings from './pages/Savings';
+import Debt from './pages/Debt';
 import Dashboard from './pages/Dashboard';
 import Import from './pages/Import';
 import Products from './pages/Products';
@@ -107,6 +108,7 @@ export default function App() {
             <NavLink to="/receipts">Slips</NavLink>
             <NavLink to="/budget">Plan</NavLink>
             <NavLink to="/savings">Savings</NavLink>
+            <NavLink to="/debt">Debt</NavLink>
             <NavLink to="/import">Import</NavLink>
             <NavLink to="/setup">Setup</NavLink>
             <NavLink to="/settings">Settings</NavLink>
@@ -121,6 +123,7 @@ export default function App() {
             <Route path="/products" element={<Products />} />
             <Route path="/budget" element={<Budget />} />
             <Route path="/savings" element={<Savings />} />
+            <Route path="/debt" element={<Debt />} />
             <Route path="/import" element={<Import />} />
             <Route path="/setup" element={<Setup />} />
             <Route path="/settings" element={<SettingsPage />} />

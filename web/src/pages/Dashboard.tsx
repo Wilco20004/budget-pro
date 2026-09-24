@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import TrendChart from '../components/TrendChart';
 import { money, shortDate } from '../format';
-import { CategoryKpi, GroupKpi, PeriodKpis, SavingsOverview, TrendPoint } from '../types';
+import { CategoryKpi, DebtOverview, GroupKpi, PeriodKpis, SavingsOverview, TrendPoint } from '../types';
 
 /** A group's subtotal bar, followed by its categories. */
 /** A category's bar, then its subcategories' bars indented under it. */
@@ -120,6 +120,7 @@ export default function Dashboard() {
   const [k, setK] = useState<PeriodKpis | null>(null);
   const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [goalsOverview, setGoalsOverview] = useState<SavingsOverview | null>(null);
+  const [debts, setDebts] = useState<DebtOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -128,6 +129,7 @@ export default function Dashboard() {
     api.kpis(selected.start).then(setK).catch((e) => setError(e.message));
     api.trend(6, selected.start).then(setTrend).catch(() => undefined);
     api.savings(selected.start).then(setGoalsOverview).catch(() => undefined);
+    api.debts(selected.start).then(setDebts).catch(() => undefined);
   }, [selected?.start]);
 
   const t = k?.totals;
@@ -193,8 +195,18 @@ export default function Dashboard() {
               <div className="value" style={{ color: t.net < 0 ? 'var(--critical-text)' : 'var(--good-text)' }}>
                 {money(t.net, { whole: true, signed: true })}
               </div>
-              <div className="sub">income {t.borrowed_actual > 0 ? '+ borrowed ' : ''}− spending − savings</div>
+              <div className="sub">income {t.borrowed_actual > 0 ? '+ borrowed ' : ''}− spending − savings{debts?.debts.length ? ' − debt paydown' : ''}</div>
             </div>
+            {debts && debts.debts.length > 0 && (
+              <Link to="/debt" className="tile" style={{ color: 'inherit', textDecoration: 'none' }}>
+                <div className="label">Debt owed</div>
+                <div className="value">{money(debts.totals.owed, { whole: true })}</div>
+                <div className="sub" style={{ color: debts.totals.paid_down < 0 ? 'var(--critical-text)' : undefined }}>
+                  {debts.totals.paid_down < 0 ? 'grew ' : 'paid down '}
+                  {money(Math.abs(debts.totals.paid_down), { whole: true })} this period
+                </div>
+              </Link>
+            )}
             {t.borrowed_actual > 0 && (
               <div className="tile">
                 <div className="label">Borrowed</div>

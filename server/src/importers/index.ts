@@ -4,6 +4,7 @@ import { db, now } from '../db';
 import { replaceProvisional } from '../notifications/service';
 import { matchUnlinkedReceipts } from '../receipts/service';
 import { autoCategorize } from '../services/categorize';
+import { categorizeDebtLines, pairDebtPayments } from '../services/debts';
 import { addDays } from '../services/periods';
 import { parseStatement, ParsedRow } from './parse';
 
@@ -81,12 +82,12 @@ function importSection(account: AccountRow, rows: ParsedRow[], importId: string,
   const byFingerprint = db.prepare('SELECT id FROM transactions WHERE fingerprint = ?');
 
   const seen = new Map<string, number>();
-  const prepared = rows.map((r) => {
+  const prepared = rows.map((r, i) => {
     const amount = account.flip_sign ? -r.amount : r.amount;
     const key = `${r.date}|${amount}|${r.description}`;
     const n = (seen.get(key) ?? 0) + 1;
     seen.set(key, n);
-    return { r, amount, fp: fingerprint(account.id, r.date, amount, r.description, n, r.externalId) };
+    return { i, r, amount, fp: fingerprint(account.id, r.date, amount, r.description, n, r.externalId) };
   });
 
   const claimed = new Set<string>();
@@ -154,34 +155,15 @@ function importSection(account: AccountRow, rows: ParsedRow[], importId: string,
   }
 
   const newIds: string[] = [];
+  // Insert in statement order: running balances (and "which line ended the
+  // day") depend on it.
+  toInsert.sort((a, b) => a.i - b.i);
   for (const p of toInsert) {
     const id = uuid();
     insert.run(id, account.id, importId, p.r.date, p.r.description, p.amount, p.r.balance, p.fp, t, t);
     newIds.push(id);
   }
   return { newIds, exact, overlap };
-}
-
-/** Puts new lines on loan accounts in the transfer category. */
-function markLoanLinesAsTransfers(ids: string[]): number {
-  const transfer = db.prepare("SELECT id FROM categories WHERE kind = 'transfer' AND archived = 0 ORDER BY sort_order LIMIT 1").get() as
-    | { id: string }
-    | undefined;
-  if (!transfer) return 0;
-  const tx = db.prepare(
-    "SELECT t.id, t.amount FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE t.id = ? AND a.type = 'loan'"
-  );
-  const ins = db.prepare("INSERT INTO transaction_splits (id, transaction_id, category_id, amount, source) VALUES (?, ?, ?, ?, 'rule')");
-  let n = 0;
-  db.transaction(() => {
-    for (const id of ids) {
-      const t = tx.get(id) as { id: string; amount: number } | undefined;
-      if (!t) continue;
-      ins.run(uuid(), t.id, transfer.id, t.amount);
-      n++;
-    }
-  })();
-  return n;
 }
 
 export async function importStatement(
@@ -265,15 +247,18 @@ export async function importStatement(
     }
   })();
 
-  // A loan account's lines are the loan's own bookkeeping — interest,
-  // insurance, the repayment arriving. The repayment is spending on the
-  // account that paid it, so counting these too would count it twice.
-  markLoanLinesAsTransfers(newIds);
+  // Debt accounts: a loan's repayment arriving is a transfer, its interest,
+  // fees and cover are the cost of the loan; card interest/fees too.
+  categorizeDebtLines(newIds);
 
   // Statement lines take over the provisional ones made from phone
   // notifications (keeping their categories/slips) before rules run.
   const provisionalReplaced = replaceProvisional(newIds);
   const auto = autoCategorize(newIds);
+  // A payment into a tracked card/loan and the money leaving the paying
+  // account are one transfer (after rules, which may have filed it as a
+  // debt repayment).
+  pairDebtPayments();
   const receiptsLinked = newIds.length ? matchUnlinkedReceipts() : 0;
   const rowCount = sections.reduce((a, s) => a + s.rows.length, 0);
   return {

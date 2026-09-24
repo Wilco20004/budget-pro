@@ -284,6 +284,42 @@ due date.
 **End** a plan that's settled early or cancelled: instalments due after
 today leave the budget.
 
+### Debt accounts
+
+The **Debt** page lists every credit card and loan account you import
+statements for (Setup → Accounts, type *Credit card* or *Loan*). For each
+one it shows:
+
+- what you owe, from the statements, and on a card with a limit, how much
+  of it is used;
+- your plan: the **repayment per period**, the **interest rate** and the
+  **credit limit** (all optional, edited on the page);
+- this period: what was paid, what the debt cost (interest, fees, cover),
+  purchases or cash taken out, and whether the balance went down or grew;
+- a payoff estimate at the planned repayment, including the interest still
+  to come. It warns you when the repayment doesn't even cover the interest.
+  On a card, the estimate assumes nothing new goes on it;
+- the balance at the end of each of the last six periods.
+
+How it counts in the budget:
+
+- **Repayments into a tracked debt account are transfers.** BudgetPro
+  matches the payment on the card or loan statement with the money leaving
+  the paying account (same amount, within 4 days), so a debit order that a
+  rule had filed under Debt repayments becomes a transfer.
+- **Only the cost is spending.** On a loan, interest and fees go to *Bank
+  fees* and credit-life cover to *Insurance*. On a card, interest and fee
+  lines go to *Bank fees*, and purchases go to their own categories.
+- **The rest is debt paydown**, planned like savings. The Plan page shows each
+  account's repayment and how much of it should pay the balance down, and
+  that paydown is part of *Planned out*. The dashboard shows what's owed and
+  how much came off this period.
+- **Debts you don't import statements for** (a store card, someone else's
+  loan) stay as Debt repayments spending.
+
+*Re-check repayments*, at the bottom of the Debt page, re-files loan lines
+imported before 1.19.0 and pairs up earlier repayments.
+
 ### Borrowed money
 
 Money you borrow (a short-term loan paid into your account, an advance) is

@@ -11,6 +11,7 @@ import { productHistory, queryProducts } from './routes/receipts';
 import { createPlan } from './routes/paymentPlans';
 import { addMovement, createGoal } from './routes/savings';
 import { savingsOverview, setTransactionAllocations } from './services/savings';
+import { debtOverview } from './services/debts';
 import { queryTransactions, setSingleCategory } from './routes/transactions';
 import { applyPlanCategory, getPlan, listPlans } from './services/paymentPlans';
 import { periodKpis, trend } from './services/kpis';
@@ -331,6 +332,21 @@ function buildServer(): McpServer {
       if (plan) applyPlanCategory(transaction_id, plan.category_id, tx.amount);
       return json({ ok: true });
     }
+  );
+
+  server.registerTool(
+    'list_debts',
+    {
+      title: 'Debt accounts',
+      description:
+        'Every credit card and loan account: owed, limit and utilisation, interest rate, planned repayment per period, this period’s ' +
+        'payments / costs (interest, fees, insurance) / purchases and how much the balance went down, payoff estimate and the owed ' +
+        'balance over the last 6 periods. Repayments into these accounts are transfers; only their costs are spending, and the rest is ' +
+        '"debt paydown" (a planned outflow like savings).',
+      inputSchema: { period: periodArg },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ period }) => json(debtOverview(resolvePeriod(period)))
   );
 
   // ---- Savings goals -----------------------------------------------------

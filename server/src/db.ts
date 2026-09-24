@@ -583,3 +583,14 @@ if (!hasColumn('payment_plans', 'loan_transaction_id')) {
   })();
 })();
 applySeed('fnb_2', [['FNB short-term loan', 'SHORT TERM LOAN CREDIT', 'Borrowed']]);
+
+// 1.19.0: debt accounts (type credit or loan). What you owe comes from the
+// statements; these are the plan: the repayment you intend each period, and
+// optionally the rate and limit for the payoff estimate and utilisation.
+for (const [col, def] of [
+  ['planned_payment', 'REAL'],
+  ['interest_rate', 'REAL'],
+  ['credit_limit', 'REAL'],
+] as const) {
+  if (!hasColumn('accounts', col)) db.exec(`ALTER TABLE accounts ADD COLUMN ${col} ${def}`);
+}

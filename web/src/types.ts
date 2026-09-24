@@ -153,6 +153,8 @@ export interface PeriodKpis {
     savings_actual: number;
     /** Borrowed this period: cash in that isn't income. */
     borrowed_actual: number;
+    debt_paydown_planned: number;
+    debt_paydown_actual: number;
     net: number;
     savings_rate: number | null;
     expense_remaining: number;
@@ -199,6 +201,8 @@ export interface BudgetLine {
   personal: number;
   parent_id: string | null;
   previous_actual: number;
+  /** This period so far. */
+  actual: number;
   group_id: string | null;
   group_name: string | null;
 }
@@ -254,6 +258,30 @@ export interface SavingsAllocation {
   goal_name: string;
   amount: number;
   source: string;
+}
+
+export interface DebtAccount {
+  account_id: string;
+  name: string;
+  bank: string;
+  type: 'credit' | 'loan';
+  planned_payment: number | null;
+  interest_rate: number | null;
+  credit_limit: number | null;
+  owed: number | null;
+  available: number | null;
+  utilisation: number | null;
+  this_period: { paid: number; costs: number; purchases: number; paid_down: number | null; owed_start: number | null };
+  planned_paydown: number;
+  status: 'no_plan' | 'paid' | 'short' | 'due';
+  payoff: { months: number | null; interest: number | null; never: boolean; date: string | null } | null;
+  history: { period: string; label: string; owed: number | null }[];
+}
+
+export interface DebtOverview {
+  period: Period;
+  debts: DebtAccount[];
+  totals: { owed: number; planned_payment: number; planned_paydown: number; paid: number; paid_down: number; costs: number };
 }
 
 export type PlanFrequency = 'monthly' | 'fortnightly' | 'weekly';

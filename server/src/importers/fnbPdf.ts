@@ -160,6 +160,10 @@ function parseCredit(lines: string[], warnings: string[]): { rows: ParsedRow[]; 
     if (!date) continue;
     rows.push({ date, description: m[2].trim() || 'Card fee', amount: r2(num(m[3]) * (m[4] ? 1 : -1)), balance: null });
   }
+  // Card statements list card lines first, then fees, interest and payments —
+  // not in date order. Running balances follow the dates, so the latest line's
+  // balance is the closing balance.
+  rows.sort((a, b) => a.date.localeCompare(b.date));
   checkClosing(rows, owedOpening === null ? null : -owedOpening, owedClosing === null ? null : -owedClosing, warnings);
   return { rows, hints: [...hints] };
 }

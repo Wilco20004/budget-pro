@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { TX_STATUS_SQL } from './categorize';
 import { planBudget } from './paymentPlans';
+import { debtOverview } from './debts';
 import { goalBudget } from './savings';
 import { parseIso, Period, recentPeriods, todayIso } from './periods';
 
@@ -72,7 +73,11 @@ export interface PeriodKpis {
     savings_actual: number;
     /** Money borrowed this period (kind 'loan'): cash in that isn't income. */
     borrowed_actual: number;
-    /** income + borrowed − expenses − savings: what's unaccounted for / left over. */
+    /** Planned repayments to tracked cards/loans, less their expected costs: what should come off the balances. */
+    debt_paydown_planned: number;
+    /** How much the tracked cards/loans went down this period (negative = debt grew). */
+    debt_paydown_actual: number;
+    /** income + borrowed − expenses − savings − debt paydown: what's unaccounted for / left over. */
     net: number;
     /** (income − expenses) / income: share of income not spent. */
     savings_rate: number | null;
@@ -255,6 +260,9 @@ export function periodKpis(period: Period): PeriodKpis {
   const savings_actual = sum('savings', 'actual');
   const savings_planned = sum('savings', 'planned');
   const borrowed_actual = sum('loan', 'actual');
+  const debt = debtOverview(period).totals;
+  const debt_paydown_planned = debt.planned_paydown;
+  const debt_paydown_actual = debt.paid_down;
   const borrowed_unplanned = db
     .prepare(
       `SELECT t.id AS transaction_id, t.date, t.description, t.amount FROM transactions t
@@ -319,11 +327,13 @@ export function periodKpis(period: Period): PeriodKpis {
       savings_planned,
       savings_actual,
       borrowed_actual,
-      net: r2(income_actual + borrowed_actual - expense_actual - savings_actual),
+      debt_paydown_planned,
+      debt_paydown_actual,
+      net: r2(income_actual + borrowed_actual - expense_actual - savings_actual - debt_paydown_actual),
       savings_rate: income_actual > 0 ? r2(((income_actual - expense_actual) / income_actual) * 100) : null,
       expense_remaining,
       daily_allowance: daysLeft > 0 ? r2(expense_remaining / daysLeft) : null,
-      unallocated: r2(income_planned - expense_planned - savings_planned),
+      unallocated: r2(income_planned - expense_planned - savings_planned - debt_paydown_planned),
     },
     recon: {
       total: Object.values(st).reduce((a, b) => a + b, 0),

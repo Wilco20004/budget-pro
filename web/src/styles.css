@@ -762,3 +762,27 @@ pre {
 .sub-row td:first-child {
   padding-left: 1.5rem;
 }
+
+/* Debt page: owed at the end of each period */
+.debt-history {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 70px;
+  margin-top: 0.75rem;
+}
+.debt-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+}
+.debt-fill {
+  width: 100%;
+  max-width: 36px;
+  background: var(--series-1);
+  border-radius: 4px 4px 0 0;
+}

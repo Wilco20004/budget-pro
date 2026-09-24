@@ -16,7 +16,10 @@ budgetsRouter.get(
   h((req, res) => {
     const period = resolvePeriod(req.params.period);
     const prev = previousPeriod(period);
-    const prevActual = new Map(periodKpis(prev).categories.map((c) => [c.category_id, c.actual]));
+    // Own figures for a parent with subcategories: its row plans what isn't split further.
+    const own = (c: { actual: number; own_actual?: number }) => c.own_actual ?? c.actual;
+    const prevActual = new Map(periodKpis(prev).categories.map((c) => [c.category_id, own(c)]));
+    const actual = new Map(periodKpis(period).categories.map((c) => [c.category_id, own(c)]));
     const plans = planBudget(period).byCategory;
     const goals = goalBudget();
     const rows = db
@@ -42,6 +45,7 @@ budgetsRouter.get(
         plans: r.kind === 'income' ? 0 : plans.get(r.category_id) ?? 0,
         goals: r.kind === 'income' ? 0 : goals.get(r.category_id) ?? 0,
         previous_actual: prevActual.get(r.category_id) ?? 0,
+        actual: actual.get(r.category_id) ?? 0,
       })),
       payment_plans: listPlans(period).filter((p) => p.this_period || p.status === 'active' || p.status === 'upcoming'),
     });

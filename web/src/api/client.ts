@@ -2,6 +2,7 @@ import {
   Account,
   BudgetLine,
   Category,
+  DebtOverview,
   PaymentPlan,
   SavingsAllocation,
   SavingsGoal,
@@ -138,6 +139,11 @@ export const api = {
   createPaymentPlan: (p: Partial<PaymentPlan>) => request<PaymentPlan>('api/payment-plans', json('POST', p)),
   updatePaymentPlan: (id: string, p: Partial<PaymentPlan>) => request<PaymentPlan>(`api/payment-plans/${id}`, json('PUT', p)),
   deletePaymentPlan: (id: string) => request<void>(`api/payment-plans/${id}`, json('DELETE')),
+
+  debts: (period?: string) => request<DebtOverview>(`api/debts${qs({ period })}`),
+  updateDebt: (accountId: string, p: { planned_payment?: number | null; interest_rate?: number | null; credit_limit?: number | null }) =>
+    request<DebtOverview>(`api/debts/${accountId}`, json('PATCH', p)),
+  recheckDebts: () => request<{ refiled: number; paired: number }>('api/debts/recheck', json('POST')),
 
   savings: (period?: string, all = false) => request<SavingsOverview>(`api/savings${qs({ period, all: all ? 1 : undefined })}`),
   createGoal: (g: Partial<SavingsGoal>) => request<SavingsGoal>('api/savings/goals', json('POST', g)),
