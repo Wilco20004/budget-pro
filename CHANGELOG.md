@@ -1,5 +1,11 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.24.2 — 2026-09-25
+
+- A slip logged before its purchase arrives now attaches itself when the
+  bank email or phone notification comes in, not only when the statement
+  is imported.
+
 ## 1.24.1 — 2026-09-25
 
 - Discovery "Incoming payment" messages (a salary paid in) are recorded

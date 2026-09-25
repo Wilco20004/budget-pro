@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
+import { matchUnlinkedReceipts } from '../receipts/service';
 import { autoCategorize } from '../services/categorize';
 import { addDays } from '../services/periods';
 import { hintNumbers } from '../importers';
@@ -47,6 +48,13 @@ function log(n: IncomingNotification, keepText: boolean, status: NotificationRes
   db.prepare(
     `INSERT INTO notifications (id, received_at, package, title, text, status, reason, transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(uuid(), now(), n.package ?? null, keepText ? n.title ?? null : null, keepText ? n.big_text || n.text || null : null, status, reason, txId);
+}
+
+/** A new provisional line: categorise it, and attach a slip logged before
+ *  the money showed up. */
+function fileNew(ids: string[]) {
+  autoCategorize(ids);
+  matchUnlinkedReceipts();
 }
 
 function createProvisional(
@@ -114,7 +122,7 @@ export function ingestFnbAlert(text: string, received: Date, source = 'FNB alert
   // Accounts you don't track leave no content behind.
   if (!tracked) return done('ignored', `Account ..${p.legs.map((l) => l.account).join(' / ..')} isn't set up in BudgetPro`, [], false);
   if (!ids.length) return done('duplicate', 'Already on a statement, or received before');
-  autoCategorize(ids);
+  fileNew(ids);
   return done('imported', p.summary, ids);
 }
 
@@ -190,7 +198,7 @@ function ingestDiscovery(n: IncomingNotification, title: string, body: string, p
     // Worded like the statement line ("EFT SALARY WILLEM") so the same rules match.
     const id = createProvisional(account.id, p.date, p.time, p.amount, `EFT ${p.reference ?? 'Incoming payment'}`, source);
     if (!id) return done('duplicate', 'Same notification received before');
-    autoCategorize([id]);
+    fileNew([id]);
     return done('imported', `${account.name}: ${p.reference ?? 'payment'} R${p.amount.toFixed(2)} in`, [id]);
   }
 
@@ -201,7 +209,7 @@ function ingestDiscovery(n: IncomingNotification, title: string, body: string, p
     if (onStatement(account.id, p.date, amount)) return done('duplicate', 'Already on an imported statement');
     const id = createProvisional(account.id, p.date, p.time, amount, `${p.merchant}${p.card ? ` ***${p.card}` : ''}`, source);
     if (!id) return done('duplicate', 'Same notification received before');
-    autoCategorize([id]);
+    fileNew([id]);
     return done('imported', `${account.name}: ${p.merchant} R${p.amount.toFixed(2)}`, [id]);
   }
 
@@ -220,7 +228,7 @@ function ingestDiscovery(n: IncomingNotification, title: string, body: string, p
     if (id) ids.push(id);
   }
   if (!ids.length) return done('duplicate', 'Transfer already recorded');
-  autoCategorize(ids);
+  fileNew(ids);
   return done('imported', `Transfer R${p.amount.toFixed(2)}`, ids);
 }
 
