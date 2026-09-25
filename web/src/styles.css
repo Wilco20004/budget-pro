@@ -786,3 +786,82 @@ pre {
   background: var(--series-1);
   border-radius: 4px 4px 0 0;
 }
+
+/* ---- Accounts: spending by payment method ------------------------------ */
+
+/* Categorical slots in fixed order, one per payment method. */
+:root {
+  --m-card: #2a78d6;
+  --m-debit_order: #eb6834;
+  --m-eft: #1baf7a;
+  --m-cash: #eda100;
+  --m-charges: #e87ba4;
+  --m-transfer: #008300;
+  --m-other: #4a3aa7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --m-card: #3987e5;
+    --m-debit_order: #d95926;
+    --m-eft: #199e70;
+    --m-cash: #c98500;
+    --m-charges: #d55181;
+    --m-transfer: #008300;
+    --m-other: #9085e9;
+  }
+}
+:root[data-theme='dark'] {
+  --m-card: #3987e5;
+  --m-debit_order: #d95926;
+  --m-eft: #199e70;
+  --m-cash: #c98500;
+  --m-charges: #d55181;
+  --m-transfer: #008300;
+  --m-other: #9085e9;
+}
+.m-card { background: var(--m-card); }
+.m-debit_order { background: var(--m-debit_order); }
+.m-eft { background: var(--m-eft); }
+.m-cash { background: var(--m-cash); }
+.m-charges { background: var(--m-charges); }
+.m-transfer { background: var(--m-transfer); }
+.m-other { background: var(--m-other); }
+
+.method-bar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0.25rem 0 0.4rem;
+}
+.method-seg {
+  min-width: 3px;
+  flex-basis: 0;
+}
+.method-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  color: var(--ink-2);
+}
+i.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  vertical-align: baseline;
+}
+.total-row td {
+  border-top: 1px solid var(--line-strong);
+}
+
+/* ---- Settle up ------------------------------------------------------------ */
+
+.settle-tiles {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.settle-amount {
+  font-size: 1.25rem;
+  margin: 0.25rem 0;
+}

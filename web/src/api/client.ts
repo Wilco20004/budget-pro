@@ -1,5 +1,7 @@
 import {
   Account,
+  AccountBreakdown,
+  SettleUp,
   BudgetLine,
   Category,
   DebtOverview,
@@ -140,6 +142,13 @@ export const api = {
   updatePaymentPlan: (id: string, p: Partial<PaymentPlan>) => request<PaymentPlan>(`api/payment-plans/${id}`, json('PUT', p)),
   deletePaymentPlan: (id: string) => request<void>(`api/payment-plans/${id}`, json('DELETE')),
 
+  accountBreakdown: (period?: string) => request<AccountBreakdown>(`api/household/accounts${qs({ period })}`),
+  settleUp: (period?: string) => request<SettleUp>(`api/household/settle${qs({ period })}`),
+  updateSettle: (
+    p: { split?: 'income' | 'equal'; shared?: { key: string; shared: boolean }; incoming?: { pattern: string; member_id: string }[] },
+    period?: string
+  ) =>
+    request<SettleUp>(`api/household/settle${qs({ period })}`, json('PUT', p)),
   debts: (period?: string) => request<DebtOverview>(`api/debts${qs({ period })}`),
   updateDebt: (accountId: string, p: { planned_payment?: number | null; interest_rate?: number | null; credit_limit?: number | null; paid_in_full?: boolean }) =>
     request<DebtOverview>(`api/debts/${accountId}`, json('PATCH', p)),

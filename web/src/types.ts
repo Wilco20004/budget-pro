@@ -31,6 +31,8 @@ export interface Account {
   type: string;
   match_hint: string | null;
   flip_sign: number;
+  /** The household member (personal category) whose account it is. */
+  owner_id?: string | null;
   transaction_count?: number;
   last_transaction_date?: string | null;
   last_balance?: number | null;
@@ -477,4 +479,71 @@ export interface WhatsappStatus {
   numbers: string;
   media_base: string;
   recent: WhatsappLog[];
+}
+
+export type PayMethod = 'card' | 'debit_order' | 'eft' | 'cash' | 'charges' | 'transfer' | 'other';
+
+export interface AccountSpend {
+  account_id: string;
+  name: string;
+  type: string;
+  owner_id: string | null;
+  owner_name: string | null;
+  money_in: number;
+  money_out: number;
+  income: number;
+  spending: number;
+  transfers_out: number;
+  by_method: Record<PayMethod, number>;
+  categories: { category_id: string | null; name: string; icon: string | null; kind: string; total: number; methods: Record<PayMethod, number> }[];
+}
+
+export interface AccountBreakdown {
+  period: Period;
+  methods: PayMethod[];
+  accounts: AccountSpend[];
+}
+
+export interface SettleMember {
+  member_id: string;
+  name: string;
+  accounts: { id: string; name: string }[];
+  income: number;
+  share: number;
+  paid: number;
+  paid_last_period: number;
+  fair_share: number;
+  planned_share: number;
+  sent: number;
+  received: number;
+  uncategorised: number;
+  paid_for_others: { member_id: string; name: string; amount: number }[];
+  paid_for_you: number;
+  position: number;
+  planned_position: number;
+  paid_by_category: { key: string; name: string; icon: string | null; amount: number; shared: boolean }[];
+}
+
+export interface Settlement {
+  from_id: string;
+  from: string;
+  to_id: string;
+  to: string;
+  amount: number;
+}
+
+export interface SettleUp {
+  period: Period;
+  rule: 'income' | 'equal';
+  basis: string;
+  shared_paid: number;
+  planned_shared: number;
+  own_costs: string[];
+  period_open: boolean;
+  members: SettleMember[];
+  transfers: { from: string; to: string; from_name: string; to_name: string; amount: number; date: string; description: string; from_account: string; to_account: string }[];
+  settle: Settlement[];
+  settle_planned: Settlement[];
+  unowned_accounts: { id: string; name: string }[];
+  incoming_rules: { pattern: string; member_id: string; name: string }[];
 }

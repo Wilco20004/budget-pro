@@ -97,6 +97,7 @@ function accountInput(body: Record<string, unknown>) {
     type: str(body.type) ?? 'cheque',
     match_hint: str(body.match_hint),
     flip_sign: body.flip_sign ? 1 : 0,
+    owner_id: str(body.owner_id),
   };
 }
 
@@ -107,8 +108,8 @@ accountsRouter.post(
     const id = uuid();
     const t = now();
     db.prepare(
-      'INSERT INTO accounts (id, name, bank, type, match_hint, flip_sign, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, a.name, a.bank, a.type, a.match_hint, a.flip_sign, t, t);
+      'INSERT INTO accounts (id, name, bank, type, match_hint, flip_sign, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, a.name, a.bank, a.type, a.match_hint, a.flip_sign, a.owner_id, t, t);
     res.status(201).json(db.prepare('SELECT * FROM accounts WHERE id = ?').get(id));
   })
 );
@@ -118,8 +119,8 @@ accountsRouter.put(
   h((req, res) => {
     const a = accountInput(req.body ?? {});
     const r = db
-      .prepare('UPDATE accounts SET name = ?, bank = ?, type = ?, match_hint = ?, flip_sign = ?, updated_at = ? WHERE id = ?')
-      .run(a.name, a.bank, a.type, a.match_hint, a.flip_sign, now(), req.params.id);
+      .prepare('UPDATE accounts SET name = ?, bank = ?, type = ?, match_hint = ?, flip_sign = ?, owner_id = ?, updated_at = ? WHERE id = ?')
+      .run(a.name, a.bank, a.type, a.match_hint, a.flip_sign, a.owner_id, now(), req.params.id);
     if (!r.changes) notFound('Account not found');
     res.json(db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id));
   })

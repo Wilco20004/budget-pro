@@ -92,6 +92,12 @@ export interface AppSettings {
   whatsapp_numbers: string;
   /** The WhatsApp platform's address, for fetching a message's MediaPath. */
   whatsapp_media_base: string;
+  /** How shared costs are divided between household members. */
+  settle_split: 'income' | 'equal';
+  /** Category keys that aren't shared: whoever pays them carries them. */
+  settle_exclude: string[];
+  /** Money in whose wording names the sender: {pattern ("A|B"), member_id}. */
+  settle_incoming: { pattern: string; member_id: string }[];
 }
 
 const DEFAULTS: AppSettings = {
@@ -102,6 +108,9 @@ const DEFAULTS: AppSettings = {
   publish_ha_sensors: true,
   whatsapp_numbers: '',
   whatsapp_media_base: 'https://qa.crm.neuracore.co.za',
+  settle_split: 'income',
+  settle_exclude: [],
+  settle_incoming: [],
 };
 
 function getRaw(key: string): string | undefined {
@@ -133,6 +142,12 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
   if (!['none', 'previous_business_day', 'next_business_day'].includes(next.weekend_rule)) {
     next.weekend_rule = DEFAULTS.weekend_rule;
   }
+  if (!['income', 'equal'].includes(next.settle_split)) next.settle_split = DEFAULTS.settle_split;
+  next.settle_incoming = (Array.isArray(next.settle_incoming) ? next.settle_incoming : [])
+    .map((c) => ({ pattern: String(c?.pattern ?? '').trim().slice(0, 200), member_id: String(c?.member_id ?? '') }))
+    .filter((c) => c.pattern && c.member_id)
+    .slice(0, 50);
+  next.settle_exclude = Array.isArray(next.settle_exclude) ? [...new Set(next.settle_exclude.map(String))].slice(0, 200) : [];
   if (!['auto', 'tesseract', 'claude'].includes(next.ocr_engine)) next.ocr_engine = DEFAULTS.ocr_engine;
   next.publish_ha_sensors = Boolean(next.publish_ha_sensors);
   next.currency_symbol = String(next.currency_symbol || DEFAULTS.currency_symbol).slice(0, 5);

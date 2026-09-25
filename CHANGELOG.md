@@ -1,5 +1,22 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.23.0 — 2026-09-25
+
+- **Accounts page**: each account's spending for the period by category
+  and by how it was paid: card, debit order, EFT / app payment, cash, or
+  bank charges and interest.
+- **Settle up**: mark each account with whose it is (Setup → Accounts →
+  *Whose account*). The page shows who paid the shared costs, each
+  person's share (by income or equally), and who should transfer how much
+  to whom. It works on what's been paid so far, and in an open period
+  also gives an estimate for the full budget. Untick a category to mark
+  it as one person's own cost. Money sent between you is taken into
+  account: between two tracked accounts it's found automatically. From an
+  untracked account, name the reference it arrives with ("THANKS LOVE" is
+  from …). Someone else's spending money paid from your account counts as
+  money sent to them.
+- MCP: `account_breakdown` and `settle_up`.
+
 ## 1.22.0 — 2026-09-24
 
 - **FNB transaction alerts** by email, auto-forwarded one at a time or

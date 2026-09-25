@@ -17,6 +17,7 @@ import { notificationsRouter } from './routes/notifications';
 import { paymentPlansRouter } from './routes/paymentPlans';
 import { savingsRouter } from './routes/savings';
 import { debtsRouter } from './routes/debts';
+import { householdRouter } from './routes/household';
 import { productsRouter, receiptsRouter } from './routes/receipts';
 import {
   accountsRouter,
@@ -55,6 +56,7 @@ app.use('/api/budgets', budgetsRouter);
 app.use('/api/payment-plans', paymentPlansRouter);
 app.use('/api/savings', savingsRouter);
 app.use('/api/debts', debtsRouter);
+app.use('/api/household', householdRouter);
 app.use('/api/kpis', kpisRouter);
 app.use('/api/transactions', transactionsRouter);
 app.use('/api/imports', importsRouter);

@@ -18,13 +18,19 @@ const TABS: [Tab, string][] = [
 
 function Accounts({ onError }: { onError: (m: string) => void }) {
   const [list, setList] = useState<Account[]>([]);
-  const blank = { name: '', bank: 'fnb', type: 'cheque', match_hint: '', flip_sign: 0 };
+  const [members, setMembers] = useState<Category[]>([]);
+  const blank = { name: '', bank: 'fnb', type: 'cheque', match_hint: '', flip_sign: 0, owner_id: null };
   const [f, setF] = useState<Partial<Account>>(blank);
   const [editing, setEditing] = useState<string | null>(null);
   const load = () => api.accounts().then(setList).catch((e) => onError(e.message));
   useEffect(() => {
     load();
+    api
+      .categories()
+      .then((cs) => setMembers(cs.filter((c) => c.personal && !c.archived && !c.parent_id)))
+      .catch(() => undefined);
   }, []);
+  const memberName = (id: string | null | undefined) => members.find((m) => m.id === id)?.name.replace(/s*personals*/i, ' ').trim();
 
   const save = () =>
     (editing ? api.updateAccount(editing, f) : api.createAccount(f))
@@ -70,6 +76,19 @@ function Accounts({ onError }: { onError: (m: string) => void }) {
               placeholder="62812345678 or last 4+ digits"
             />
           </label>
+          {members.length > 0 && (
+            <label className="field">
+              Whose account
+              <select value={f.owner_id ?? ''} onChange={(e) => setF({ ...f, owner_id: e.target.value || null })}>
+                <option value="">Shared / nobody's</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {memberName(m.id)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="row small" style={{ gap: 4 }}>
             <input type="checkbox" checked={Boolean(f.flip_sign)} onChange={(e) => setF({ ...f, flip_sign: e.target.checked ? 1 : 0 })} />
             Export shows purchases as positive (flip signs)
@@ -107,7 +126,7 @@ function Accounts({ onError }: { onError: (m: string) => void }) {
             {list.map((a) => (
               <tr key={a.id}>
                 <td>
-                  {a.name} <span className="small muted">{a.bank} · {a.type}</span>
+                  {a.name} <span className="small muted">{a.bank} · {a.type}{a.owner_id && memberName(a.owner_id) ? ` · ${memberName(a.owner_id)}'s` : ''}</span>
                 </td>
                 <td className="small">{a.match_hint ?? '—'}</td>
                 <td className="num">{a.transaction_count}</td>

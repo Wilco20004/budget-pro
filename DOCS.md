@@ -397,6 +397,40 @@ that, *Behind* when it doesn't). The planned top-up is added to the budget of
 the savings category you choose, until the target is reached or the goal is
 archived. It shows as "+ savings goal top-ups" on the Plan page.
 
+### Spending per account
+
+The **Accounts** page shows what went out of each account in the period,
+by category and by payment method: card, debit order, EFT / app payment,
+cash, or bank charges and interest. The method is read from the statement
+wording ("POS Purchase", "Debit order", "Magtape Debit", "FNB App Payment
+To", "EFT", …). A line with no recognisable wording is a card purchase,
+because both banks print card lines as just the merchant. Transfers and
+card repayments aren't spending, so the tables leave them out.
+
+### Settle up
+
+This page is for households where one person pays most of the shared
+bills. Mark each account with whose it is (Setup → Accounts → *Whose
+account*; the choices are the people under Members). The page then works
+out:
+
+- **Shared costs**: everything in expense categories except each person's
+  spending money. A card or loan counts its interest, fees and cover plus
+  how much it came down. Untick a category if it's only one person's:
+  whoever pays it carries it.
+- **Each person's share**: by income (this period's, or last period's
+  until everyone's salary is in), or equally.
+- **Money sent between you**: a line out on one person's account and the
+  same amount in on the other's within 3 days. Money from an account
+  BudgetPro doesn't track is matched by its reference; add it under
+  *Money from each other*, e.g. "THANKS LOVE" is from Sam. Someone
+  else's spending money paid from your account counts as money sent to
+  them.
+- **Who transfers what**: on what's been paid so far. For an open period
+  there's also an estimate for the full budget: everyone's share of the
+  plan, less what they're expected to pay themselves (so far, or last
+  period's if that was more).
+
 ## Home Assistant sensors
 
 Updated on every change and every 5 minutes (turn off in Settings):

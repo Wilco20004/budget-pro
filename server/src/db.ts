@@ -607,3 +607,9 @@ if (!hasColumn('accounts', 'debt_category_id')) {
 if (!hasColumn('accounts', 'paid_in_full')) {
   db.exec('ALTER TABLE accounts ADD COLUMN paid_in_full INTEGER NOT NULL DEFAULT 0');
 }
+
+// 1.23.0: whose account it is (a household member = a personal category),
+// for settling up shared costs between members.
+if (!hasColumn('accounts', 'owner_id')) {
+  db.exec('ALTER TABLE accounts ADD COLUMN owner_id TEXT REFERENCES categories(id) ON DELETE SET NULL');
+}

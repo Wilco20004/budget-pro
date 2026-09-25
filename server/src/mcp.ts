@@ -12,6 +12,7 @@ import { createPlan } from './routes/paymentPlans';
 import { addMovement, createGoal } from './routes/savings';
 import { savingsOverview, setTransactionAllocations } from './services/savings';
 import { debtOverview } from './services/debts';
+import { accountBreakdown, settleUp } from './services/household';
 import { queryTransactions, setSingleCategory } from './routes/transactions';
 import { applyPlanCategory, getPlan, listPlans } from './services/paymentPlans';
 import { periodKpis, trend } from './services/kpis';
@@ -347,6 +348,33 @@ function buildServer(): McpServer {
       annotations: { readOnlyHint: true },
     },
     async ({ period }) => json(debtOverview(resolvePeriod(period)))
+  );
+
+  server.registerTool(
+    'account_breakdown',
+    {
+      title: 'Spending per account',
+      description:
+        'Per account for a period: money in/out, income, transfers, and spending by top-level category split by payment method ' +
+        '(card, debit_order, eft, cash, charges = bank fees and interest, transfer, other). Methods are read from the statement wording.',
+      inputSchema: { period: periodArg },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ period }) => json(accountBreakdown(resolvePeriod(period)))
+  );
+
+  server.registerTool(
+    'settle_up',
+    {
+      title: 'Settle up between household members',
+      description:
+        'Who paid the shared costs (expense categories except personal spending money; a card or loan counts its costs plus paydown) ' +
+        'from their own accounts, each member’s share (by income or equal), money sent between them, and who should transfer how much ' +
+        'to whom — on what was paid so far, and (for an open period) an estimate for the full budget.',
+      inputSchema: { period: periodArg },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ period }) => json(settleUp(resolvePeriod(period)))
   );
 
   // ---- Savings goals -----------------------------------------------------
