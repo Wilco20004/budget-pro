@@ -1,5 +1,11 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.23.1 — 2026-09-25
+
+- Notifications from a banking app that aren't recognised are now logged
+  as *unparsed* with their wording, not dropped as "not a bank
+  notification". This shows why a purchase didn't come through.
+
 ## 1.23.0 — 2026-09-25
 
 - **Accounts page**: each account's spending for the period by category

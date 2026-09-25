@@ -129,6 +129,14 @@ export function ingestNotification(n: IncomingNotification): NotificationResult 
     return ingestFnbAlert(looksLikeFnbAlert(body) ? body : `${title} ${body}`, posted ?? new Date(), 'FNB notification');
   }
 
+  // From the banking app itself but worded in a way we don't read yet:
+  // keep it (it's the bank's own message) so the wording can be added.
+  if (!looksLikeDiscovery(title, body) && /^(bank.discovery.|za.co.fnb)/i.test(n.package ?? '')) {
+    const reason = title || body ? 'Banking app notification not recognised' : 'Arrived with no title or text';
+    log(n, true, 'unparsed', reason, null);
+    return { status: 'unparsed', reason, transaction_ids: [] };
+  }
+
   if (!looksLikeDiscovery(title, body)) {
     // Not a bank notification we understand: keep no content, just the fact.
     const r: NotificationResult = { status: 'not_bank', reason: 'Not a recognised bank notification', transaction_ids: [] };
