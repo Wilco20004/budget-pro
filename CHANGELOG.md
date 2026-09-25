@@ -1,5 +1,13 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.24.0 — 2026-09-25
+
+- **Discovery Bank transaction emails** ("Transaction update — …"),
+  whether sent to the mailbox directly or forwarded, become provisional
+  transactions, just like the phone notifications. They carry the same
+  message, and one arriving both ways is recorded once. This is more
+  reliable than the phone notifications.
+
 ## 1.23.1 — 2026-09-25
 
 - Notifications from a banking app that aren't recognised are now logged

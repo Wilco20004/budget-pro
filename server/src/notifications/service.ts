@@ -120,6 +120,26 @@ export function ingestFnbAlert(text: string, received: Date, source = 'FNB alert
 
 export { looksLikeFnbAlert };
 
+/** Discovery Bank's "Transaction update" email (sent as it happens, or
+ *  forwarded): the message between any forwarding header and "For more
+ *  info" is the same as the phone notification. Null if it isn't one. */
+export function ingestDiscoveryEmail(subject: string, text: string, received: Date): NotificationResult | null {
+  if (!/transaction update/i.test(subject)) return null;
+  const lines = text.split(/\r?\n/).map((l) => l.trim());
+  let start = 0;
+  lines.forEach((l, i) => {
+    if (/^(From|Date|Subject|To|Sent|Cc):\s/i.test(l) && i < 12) start = i + 1;
+  });
+  let end = lines.findIndex((l, i) => i >= start && /^For more info/i.test(l));
+  if (end < 0) end = lines.length;
+  const block = lines.slice(start, end).filter(Boolean);
+  if (block.length < 2) return null;
+  const title = block[0];
+  const body = block.slice(1).join('\n');
+  if (!looksLikeDiscovery(title, body)) return null;
+  return ingestDiscovery({ package: 'discovery-email', title, text: body }, title, body, received, 'Discovery email');
+}
+
 export function ingestNotification(n: IncomingNotification): NotificationResult {
   const title = (n.title ?? '').trim();
   const body = (n.big_text || n.text || '').trim();
@@ -144,6 +164,12 @@ export function ingestNotification(n: IncomingNotification): NotificationResult 
     return r;
   }
 
+  return ingestDiscovery(n, title, body, posted, 'phone notification');
+}
+
+/** A Discovery Bank transaction message — the phone notification, or the
+ *  "Transaction update" email, which carries the same wording. */
+function ingestDiscovery(n: IncomingNotification, title: string, body: string, posted: Date | undefined, source: string): NotificationResult {
   const p = parseDiscoveryNotification(title, body, posted);
   const done = (status: NotificationResult['status'], reason: string | null, ids: string[] = [], keepText = true): NotificationResult => {
     log(n, keepText, status, reason, ids[0] ?? null);
@@ -161,7 +187,7 @@ export function ingestNotification(n: IncomingNotification): NotificationResult 
     if (!account) return untracked(`Account ***${p.account} isn't set up in BudgetPro`);
     const amount = -Math.abs(p.amount);
     if (onStatement(account.id, p.date, amount)) return done('duplicate', 'Already on an imported statement');
-    const id = createProvisional(account.id, p.date, p.time, amount, `${p.merchant}${p.card ? ` ***${p.card}` : ''}`);
+    const id = createProvisional(account.id, p.date, p.time, amount, `${p.merchant}${p.card ? ` ***${p.card}` : ''}`, source);
     if (!id) return done('duplicate', 'Same notification received before');
     autoCategorize([id]);
     return done('imported', `${account.name}: ${p.merchant} R${p.amount.toFixed(2)}`, [id]);
@@ -174,11 +200,11 @@ export function ingestNotification(n: IncomingNotification): NotificationResult 
   if (!from && !to) return untracked('Neither account in this transfer is set up in BudgetPro');
   const ids: string[] = [];
   if (from && !onStatement(from.id, p.date, -p.amount)) {
-    const id = createProvisional(from.id, p.date, p.time, -p.amount, `Transfer Inter account transfer to account...${p.to_account ?? ''}`);
+    const id = createProvisional(from.id, p.date, p.time, -p.amount, `Transfer Inter account transfer to account...${p.to_account ?? ''}`, source);
     if (id) ids.push(id);
   }
   if (to && !onStatement(to.id, p.date, p.amount)) {
-    const id = createProvisional(to.id, p.date, p.time, p.amount, `Transfer Inter account transfer from account...${p.from_account ?? ''}`);
+    const id = createProvisional(to.id, p.date, p.time, p.amount, `Transfer Inter account transfer from account...${p.from_account ?? ''}`, source);
     if (id) ids.push(id);
   }
   if (!ids.length) return done('duplicate', 'Transfer already recorded');

@@ -85,6 +85,11 @@ fails with a certificate error, use your mail host's server name (the one
 its certificate is issued to) as `imap_host`. A filter in your normal
 mailbox can auto-forward the shop's emails. What happens per email:
 
+- **Discovery Bank transaction emails** ("Transaction update — …") are
+  read the same way as the Discovery phone notification, whether they come
+  straight from Discovery or are forwarded. This is steadier than phone
+  notifications. If the same purchase arrives both ways, it is recorded
+  once.
 - **FNB transaction alerts** (the "FNB:-) R… reserved for purchase @ …"
   emails) become provisional transactions straight away, like phone
   notifications. The statement replaces them later. They can be forwarded

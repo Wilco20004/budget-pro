@@ -1,6 +1,6 @@
 import { ImapFlow } from 'imapflow';
 import { ParsedMail, simpleParser } from 'mailparser';
-import { ingestFnbAlert, looksLikeFnbAlert } from '../notifications/service';
+import { ingestDiscoveryEmail, ingestFnbAlert, looksLikeFnbAlert } from '../notifications/service';
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
 import { publishSensors } from '../ha';
@@ -100,6 +100,14 @@ export async function handleMail(mail: ParsedMail): Promise<{ status: EmailStatu
     alertTx += r.transaction_ids.length;
   };
   if (mail.subject && looksLikeFnbAlert(mail.subject)) alert(mail.subject, mail.date);
+  // Discovery Bank transaction emails: the body is the notification.
+  const discovery = (subject: string, text: string, when: Date | undefined) => {
+    const r = ingestDiscoveryEmail(subject, text, when ?? mail.date ?? new Date());
+    if (!r) return;
+    alerts++;
+    alertTx += r.transaction_ids.length;
+  };
+  if (mail.subject) discovery(mail.subject, mail.text || '', mail.date);
 
   for (const a of mail.attachments ?? []) {
     const name = a.filename || 'attachment';
@@ -108,6 +116,7 @@ export async function handleMail(mail: ParsedMail): Promise<{ status: EmailStatu
         const inner = await simpleParser(a.content);
         const subject = inner.subject ?? name.replace(/\.eml$/i, '');
         if (looksLikeFnbAlert(subject)) alert(subject, inner.date);
+        else discovery(subject, inner.text || '', inner.date);
       } catch {
         // not a readable email — nothing to do with it
       }
@@ -141,7 +150,7 @@ export async function handleMail(mail: ParsedMail): Promise<{ status: EmailStatu
     }
   }
 
-  if (alerts) notes.unshift(`${alerts} FNB alert(s): ${alertTx} new provisional transaction(s)`);
+  if (alerts) notes.unshift(`${alerts} bank alert(s): ${alertTx} new provisional transaction(s)`);
   if (statements || slips) return { status: statements ? 'statement' : 'receipt', detail: notes.join('; '), receipt_id: receiptId };
   if (alerts) return { status: 'transactions', detail: notes.join('; '), receipt_id: null };
   if (notes.length) return { status: 'failed', detail: notes.join('; '), receipt_id: null };
