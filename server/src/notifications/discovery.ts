@@ -22,6 +22,14 @@ import { parseAmount } from '../importers/parse';
 
 export type ParsedNotification =
   | {
+      kind: 'incoming';
+      amount: number; // positive
+      account: string; // last 4 digits
+      reference: string | null;
+      date: string | null;
+      time: string | null;
+    }
+  | {
       kind: 'card_payment';
       merchant: string;
       amount: number; // positive
@@ -80,6 +88,16 @@ export function parseDiscoveryNotification(title: string, text: string, postedAt
     return { kind: 'ignore', reason: 'Declined or failed — no money moved' };
   }
   const { date, time } = notificationDate(all, postedAt);
+
+  // Money paid in by someone else (a salary): "Incoming payment / R 30,850.16
+  // / To account ending ***1234 / Reference: SALARY".
+  if (/incoming payment/i.test(all) && !/\bTransfer\b/i.test(title)) {
+    const amt = all.match(new RegExp(AMOUNT));
+    const to = all.match(/To account ending\s*\*{3}(\d{4})/i);
+    if (!amt || !to) return { kind: 'unknown', reason: 'Incoming payment without amount or account' };
+    const ref = all.match(/Reference:\s*(.+)/i);
+    return { kind: 'incoming', amount: parseAmount(amt[1]) ?? 0, account: to[1], reference: ref ? ref[1].trim() : null, date, time };
+  }
 
   if (/\bTransfer\b/i.test(title) || /account ending/i.test(all)) {
     const amt = all.match(new RegExp(AMOUNT));

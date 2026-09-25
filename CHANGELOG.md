@@ -1,5 +1,11 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.24.1 — 2026-09-25
+
+- Discovery "Incoming payment" messages (a salary paid in) are recorded
+  as money in, worded like the statement line ("EFT SALARY …"), instead of
+  being read as a transfer.
+
 ## 1.24.0 — 2026-09-25
 
 - **Discovery Bank transaction emails** ("Transaction update — …"),

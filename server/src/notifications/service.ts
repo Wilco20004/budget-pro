@@ -130,7 +130,8 @@ export function ingestDiscoveryEmail(subject: string, text: string, received: Da
   lines.forEach((l, i) => {
     if (/^(From|Date|Subject|To|Sent|Cc):\s/i.test(l) && i < 12) start = i + 1;
   });
-  let end = lines.findIndex((l, i) => i >= start && /^For more info/i.test(l));
+  // The message ends before the footer: "For more info", images, a rule.
+  let end = lines.findIndex((l, i) => i >= start && /^(For more info|\*?\[image|-{6,})/i.test(l));
   if (end < 0) end = lines.length;
   const block = lines.slice(start, end).filter(Boolean);
   if (block.length < 2) return null;
@@ -181,6 +182,17 @@ function ingestDiscovery(n: IncomingNotification, title: string, body: string, p
   if (p.kind === 'ignore') return done('ignored', p.reason);
   if (p.kind === 'unknown') return done('unparsed', p.reason);
   if (!p.date) return done('unparsed', 'No date in the notification');
+
+  if (p.kind === 'incoming') {
+    const account = accountForLast4(p.account);
+    if (!account) return untracked(`Account ***${p.account} isn't set up in BudgetPro`);
+    if (onStatement(account.id, p.date, p.amount)) return done('duplicate', 'Already on an imported statement');
+    // Worded like the statement line ("EFT SALARY WILLEM") so the same rules match.
+    const id = createProvisional(account.id, p.date, p.time, p.amount, `EFT ${p.reference ?? 'Incoming payment'}`, source);
+    if (!id) return done('duplicate', 'Same notification received before');
+    autoCategorize([id]);
+    return done('imported', `${account.name}: ${p.reference ?? 'payment'} R${p.amount.toFixed(2)} in`, [id]);
+  }
 
   if (p.kind === 'card_payment') {
     const account = accountForLast4(p.account);
