@@ -1,5 +1,14 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.25.0 — 2026-09-26
+
+- **Compact menu.** Inside Home Assistant the BudgetPro title row is
+  hidden, because HA shows its own. On a phone the menu is one slim bar:
+  the page you're on, the to-sort count, and ☰, which opens the pages,
+  grouped, from the right. On a wide screen the everyday pages are shown
+  and the rest are in *Money* and *Manage* dropdowns.
+- Stat tiles sit two to a row on phones.
+
 ## 1.24.2 — 2026-09-25
 
 - A slip logged before its purchase arrives now attaches itself when the

@@ -108,17 +108,152 @@ a {
   display: flex;
   gap: 1.1rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 
-.topbar nav a {
+.topbar nav a,
+.nav-drop-btn {
   color: #cfe3d8;
   text-decoration: none;
   font-size: 0.95rem;
 }
 
-.topbar nav a.active {
+.topbar nav a.active,
+.nav-drop-btn.active {
   color: white;
   font-weight: 600;
+}
+
+/* Inside Home Assistant, which shows its own title: a slimmer bar. */
+.topbar.embedded {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.nav-drop {
+  position: relative;
+}
+.nav-drop-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.nav-drop-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: -0.75rem;
+  z-index: 30;
+  min-width: 11rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+.topbar .nav-drop-menu a {
+  color: var(--ink);
+  padding: 0.45rem 0.9rem;
+}
+.topbar .nav-drop-menu a:hover {
+  background: var(--surface-2);
+}
+.topbar .nav-drop-menu a.active {
+  color: var(--accent);
+}
+
+/* Phones: current page + a menu that slides in from the right. */
+.nav-narrow {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+}
+.nav-current {
+  font-weight: 600;
+  flex: 1;
+}
+.nav-todo {
+  text-decoration: none;
+}
+.nav-burger {
+  background: none;
+  border: 0;
+  color: inherit;
+  font-size: 1.35rem;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+  cursor: pointer;
+}
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: flex-end;
+}
+.drawer {
+  width: min(78vw, 300px);
+  height: 100%;
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0.75rem 0 1.5rem;
+  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.25);
+  animation: drawer-in 0.18s ease-out;
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.75rem 0.5rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+.drawer-group {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.drawer-group-name {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 0.25rem 1.1rem;
+}
+.drawer a {
+  display: block;
+  padding: 0.6rem 1.1rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+.drawer a.active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-soft);
+}
+
+@media (max-width: 760px) {
+  .nav-wide {
+    display: none !important;
+  }
+  .nav-narrow {
+    display: flex;
+  }
+  .topbar.embedded .brand {
+    display: none;
+  }
 }
 
 .badge-count {
@@ -864,4 +999,21 @@ i.swatch {
 .settle-amount {
   font-size: 1.25rem;
   margin: 0.25rem 0;
+}
+
+/* Phones: two tiles a row rather than one tall column. */
+@media (max-width: 480px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  .tile {
+    padding: 0.7rem 0.8rem;
+  }
+  .tile .value {
+    font-size: 1.25rem;
+  }
+  .settle-tiles {
+    grid-template-columns: 1fr;
+  }
 }

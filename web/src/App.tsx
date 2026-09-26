@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
+import NavBar from './components/NavBar';
 import { api, DATA_CHANGED, getStoredToken, onAuthRequired, setStoredToken } from './api/client';
 import { PeriodProvider } from './components/PeriodContext';
 import { setCurrency } from './format';
@@ -44,7 +45,8 @@ function TokenPrompt({ onDone }: { onDone: () => void }) {
   );
 }
 
-function ReconcileBadge() {
+/** Transactions still to sort (uncategorised or waiting for a slip). */
+function useReconcileCount() {
   const [n, setN] = useState(0);
   const loc = useLocation();
   const [tick, setTick] = useState(0);
@@ -64,7 +66,12 @@ function ReconcileBadge() {
     );
     return () => clearTimeout(t);
   }, [loc.pathname, loc.search, tick]);
-  return n > 0 ? <span className="badge-count">{n}</span> : null;
+  return n;
+}
+
+function Header() {
+  const n = useReconcileCount();
+  return <NavBar badge={n > 0 ? <span className="badge-count">{n}</span> : null} />;
 }
 
 export default function App() {
@@ -95,29 +102,7 @@ export default function App() {
   return (
     <PeriodProvider key={ready}>
       <div className="app">
-        <header className="topbar">
-          <NavLink to="/" className="brand">
-            💸 BudgetPro
-          </NavLink>
-          <nav>
-            <NavLink to="/" end>
-              Dashboard
-            </NavLink>
-            <NavLink to="/transactions">
-              Transactions
-              <ReconcileBadge />
-            </NavLink>
-            <NavLink to="/receipts">Slips</NavLink>
-            <NavLink to="/budget">Plan</NavLink>
-            <NavLink to="/savings">Savings</NavLink>
-            <NavLink to="/debt">Debt</NavLink>
-            <NavLink to="/accounts">Accounts</NavLink>
-            <NavLink to="/settle">Settle up</NavLink>
-            <NavLink to="/import">Import</NavLink>
-            <NavLink to="/setup">Setup</NavLink>
-            <NavLink to="/settings">Settings</NavLink>
-          </nav>
-        </header>
+        <Header />
         <main className="content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
