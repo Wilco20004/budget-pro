@@ -16,6 +16,12 @@ import { parseAmount } from '../importers/parse';
 //   To account ending ***8901
 //   Wednesday, 23 September at 08:55
 //
+//   Debit order
+//   R 1,089.64
+//   From account ending ***8901
+//   Reference: INSURER 123
+//   Monday, 28 September at 22:11
+//
 // Declines ("Insufficient funds") move no money and are ignored. Android may
 // hand the body over as one line, so everything is matched on the whole
 // text rather than line positions.
@@ -23,6 +29,15 @@ import { parseAmount } from '../importers/parse';
 export type ParsedNotification =
   | {
       kind: 'incoming';
+      amount: number; // positive
+      account: string; // last 4 digits
+      reference: string | null;
+      date: string | null;
+      time: string | null;
+    }
+  | {
+      kind: 'outgoing'; // a debit order or payment to someone outside your accounts
+      label: string; // the title, e.g. "Debit order"
       amount: number; // positive
       account: string; // last 4 digits
       reference: string | null;
@@ -79,7 +94,7 @@ export function notificationDate(text: string, postedAt?: Date): { date: string 
 }
 
 export function looksLikeDiscovery(title: string, text: string): boolean {
-  return /\*{3}\d{4}/.test(text) && /(Card payment|Transfer|Card ending|account ending|Available balance)/i.test(`${title} ${text}`);
+  return /\*{3}\d{4}/.test(text) && /(Card payment|Transfer|Debit order|Card ending|account ending|Available balance)/i.test(`${title} ${text}`);
 }
 
 export function parseDiscoveryNotification(title: string, text: string, postedAt?: Date): ParsedNotification {
@@ -97,6 +112,19 @@ export function parseDiscoveryNotification(title: string, text: string, postedAt
     if (!amt || !to) return { kind: 'unknown', reason: 'Incoming payment without amount or account' };
     const ref = all.match(/Reference:\s*(.+)/i);
     return { kind: 'incoming', amount: parseAmount(amt[1]) ?? 0, account: to[1], reference: ref ? ref[1].trim() : null, date, time };
+  }
+
+  // Money out to someone else: "Debit order / R 1,089.64 / From account
+  // ending ***1234 / Reference: INSURER 123". Only a From side, and not a
+  // transfer between your own accounts.
+  if (!/\bTransfer\b/i.test(title) && /From account ending/i.test(all) && !/To account ending/i.test(all)) {
+    const amt = all.match(new RegExp(AMOUNT));
+    const from = all.match(/From account ending\s*\*{3}(\d{4})/i);
+    if (!amt || !from) return { kind: 'unknown', reason: 'Payment without amount or account' };
+    const ref = all.match(/Reference:\s*(.+)/i);
+    const t = title.trim().toLowerCase();
+    const label = t ? t[0].toUpperCase() + t.slice(1) : 'Payment';
+    return { kind: 'outgoing', label, amount: parseAmount(amt[1]) ?? 0, account: from[1], reference: ref ? ref[1].trim() : null, date, time };
   }
 
   if (/\bTransfer\b/i.test(title) || /account ending/i.test(all)) {

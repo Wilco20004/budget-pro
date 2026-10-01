@@ -88,8 +88,10 @@ mailbox can auto-forward the shop's emails. What happens per email:
 - **Discovery Bank transaction emails** ("Transaction update — …") are
   read the same way as the Discovery phone notification, whether they come
   straight from Discovery or are forwarded. This is steadier than phone
-  notifications. If the same purchase arrives both ways, it is recorded
-  once.
+  notifications. Card payments, transfers, money paid in and debit orders
+  are read; a debit order is recorded as "Debit order <reference>", so the
+  reference picks the category. If the same transaction arrives both ways
+  (or was typed in without a time), it is recorded once.
 - **FNB transaction alerts** (the "FNB:-) R… reserved for purchase @ …"
   emails) become provisional transactions straight away, like phone
   notifications. The statement replaces them later. They can be forwarded

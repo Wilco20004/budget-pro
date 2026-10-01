@@ -1,5 +1,14 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.25.1 — 2026-10-01
+
+- **Discovery debit orders** from notifications and emails are recorded as
+  "Debit order <reference>" (money out, category from the reference)
+  instead of a transfer to an unknown account.
+- A transaction entered without a time (typed in, or a notification with no
+  clock) is no longer recorded a second time when the same one arrives
+  later with a time, e.g. from the bank email.
+
 ## 1.25.0 — 2026-09-26
 
 - **Compact menu.** Inside Home Assistant the BudgetPro title row is

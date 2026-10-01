@@ -65,7 +65,16 @@ function createProvisional(
   description: string,
   source = 'phone notification'
 ): string | null {
-  const fingerprint = `notif:${accountId}|${date}|${time ?? ''}|${amount.toFixed(2)}|${description.toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
+  const key = description.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const fingerprint = `notif:${accountId}|${date}|${time ?? ''}|${amount.toFixed(2)}|${key}`;
+  // The same money told twice, once without a time (typed in, or a
+  // notification with no clock) and once with: keep the first.
+  const twin = time
+    ? db.prepare('SELECT 1 FROM transactions WHERE fingerprint = ?').get(`notif:${accountId}|${date}||${amount.toFixed(2)}|${key}`)
+    : db
+        .prepare("SELECT 1 FROM transactions WHERE fingerprint LIKE ? ESCAPE '\\' AND fingerprint LIKE ?")
+        .get(`notif:${accountId.replace(/[%_\\]/g, '\\$&')}|${date}|%`, `%|${amount.toFixed(2)}|${key}`);
+  if (twin) return null;
   const id = uuid();
   const t = now();
   const r = db
@@ -200,6 +209,18 @@ function ingestDiscovery(n: IncomingNotification, title: string, body: string, p
     if (!id) return done('duplicate', 'Same notification received before');
     fileNew([id]);
     return done('imported', `${account.name}: ${p.reference ?? 'payment'} R${p.amount.toFixed(2)} in`, [id]);
+  }
+
+  if (p.kind === 'outgoing') {
+    const account = accountForLast4(p.account);
+    if (!account) return untracked(`Account ***${p.account} isn't set up in BudgetPro`);
+    const amount = -Math.abs(p.amount);
+    if (onStatement(account.id, p.date, amount)) return done('duplicate', 'Already on an imported statement');
+    // "Debit order DISCLIFE 123": the reference is what the category rules match.
+    const id = createProvisional(account.id, p.date, p.time, amount, `${p.label}${p.reference ? ` ${p.reference}` : ''}`, source);
+    if (!id) return done('duplicate', 'Same notification received before');
+    fileNew([id]);
+    return done('imported', `${account.name}: ${p.label} ${p.reference ?? ''} R${p.amount.toFixed(2)}`.replace(/\s+/g, ' '), [id]);
   }
 
   if (p.kind === 'card_payment') {
