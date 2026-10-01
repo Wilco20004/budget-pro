@@ -222,6 +222,14 @@ export function setSingleCategory(id: string, categoryId: string, remember = fal
       categoryId,
       tx.amount
     );
+    // A transfer rule ("INTER ACCOUNT TRANSFER") matches every transfer, so
+    // one line that turned out to be a debit order mustn't repoint it.
+    const kindOf = (cid: string | null) =>
+      cid ? (db.prepare('SELECT kind FROM categories WHERE id = ?').get(cid) as { kind: string } | undefined)?.kind : undefined;
+    const ruleCat = tx.merchant_id
+      ? (db.prepare('SELECT default_category_id AS c FROM merchants WHERE id = ?').get(tx.merchant_id) as { c: string | null } | undefined)?.c ?? null
+      : null;
+    if (remember && kindOf(ruleCat) === 'transfer' && kindOf(categoryId) !== 'transfer') remember = false;
     if (remember) {
       if (tx.merchant_id) {
         db.prepare('UPDATE merchants SET default_category_id = ?, updated_at = ? WHERE id = ?').run(categoryId, now(), tx.merchant_id);

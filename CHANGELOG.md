@@ -1,5 +1,12 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.26.1 — 2026-10-01
+
+- **Remember merchant** no longer repoints a transfer rule. Giving one
+  "Inter account transfer" line a spending category (it was really a
+  debit order) used to make every later transfer that category; now only
+  that line changes.
+
 ## 1.26.0 — 2026-10-01
 
 - **Counts in the budget on.** A transaction can count in a different
