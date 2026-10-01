@@ -61,7 +61,7 @@ function lines(from: string, to: string, accountIds?: string[]): Line[] {
        LEFT JOIN transaction_splits s ON s.transaction_id = t.id
        LEFT JOIN categories c ON c.id = s.category_id
        LEFT JOIN categories p ON p.id = c.parent_id
-       WHERE t.date BETWEEN ? AND ? AND t.ignored = 0`
+       WHERE COALESCE(t.budget_date, t.date) BETWEEN ? AND ? AND t.ignored = 0`
     )
     .all(from, to) as Line[];
   const out: Line[] = [];

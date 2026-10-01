@@ -181,6 +181,11 @@ many are still to do.
 - **Transfers** between your own accounts belong in a *transfer* category —
   they're excluded from spending.
 - Cash spend: **+ Add cash / manual**.
+- **Counts in the budget on** (in a row's details): when money left on a
+  different day than the period it belongs to, e.g. a debit order that
+  failed and was collected weeks later, give it the date it was for. It
+  then counts in that period everywhere (budget, dashboard, accounts,
+  settle up), and the list shows "→ date" under the bank date.
 
 ### Smart categories and slips
 

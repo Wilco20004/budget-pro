@@ -149,7 +149,7 @@ export function periodKpis(period: Period): PeriodKpis {
     .prepare(
       `SELECT s.category_id, SUM(s.amount) AS total, COUNT(DISTINCT t.id) AS n
        FROM transaction_splits s JOIN transactions t ON t.id = s.transaction_id
-       WHERE t.date BETWEEN ? AND ? AND t.ignored = 0
+       WHERE COALESCE(t.budget_date, t.date) BETWEEN ? AND ? AND t.ignored = 0
        GROUP BY s.category_id`
     )
     .all(period.start, period.end) as { category_id: string; total: number; n: number }[];
@@ -162,7 +162,7 @@ export function periodKpis(period: Period): PeriodKpis {
               COALESCE(SUM(CASE WHEN t.amount < 0 THEN t.amount - COALESCE((SELECT SUM(s.amount) FROM transaction_splits s WHERE s.transaction_id = t.id), 0) ELSE 0 END), 0) AS out_rest,
               COUNT(*) AS n
        FROM transactions t
-       WHERE t.date BETWEEN ? AND ? AND t.ignored = 0
+       WHERE COALESCE(t.budget_date, t.date) BETWEEN ? AND ? AND t.ignored = 0
          AND ABS(t.amount - COALESCE((SELECT SUM(s.amount) FROM transaction_splits s WHERE s.transaction_id = t.id), 0)) > 0.009`
     )
     .get(period.start, period.end) as { rest: number; out_rest: number; n: number };
@@ -269,7 +269,7 @@ export function periodKpis(period: Period): PeriodKpis {
   const borrowed_unplanned = db
     .prepare(
       `SELECT t.id AS transaction_id, t.date, t.description, t.amount FROM transactions t
-       WHERE t.date BETWEEN ? AND ? AND t.ignored = 0 AND t.amount > 0
+       WHERE COALESCE(t.budget_date, t.date) BETWEEN ? AND ? AND t.ignored = 0 AND t.amount > 0
          AND EXISTS (SELECT 1 FROM transaction_splits s JOIN categories c ON c.id = s.category_id WHERE s.transaction_id = t.id AND c.kind = 'loan')
          AND NOT EXISTS (SELECT 1 FROM payment_plans p WHERE p.loan_transaction_id = t.id)
        ORDER BY t.date`
@@ -280,7 +280,7 @@ export function periodKpis(period: Period): PeriodKpis {
 
   const statusRows = db
     .prepare(
-      `SELECT status, COUNT(*) AS n FROM (SELECT ${TX_STATUS_SQL} AS status FROM transactions t WHERE t.date BETWEEN ? AND ?) GROUP BY status`
+      `SELECT status, COUNT(*) AS n FROM (SELECT ${TX_STATUS_SQL} AS status FROM transactions t WHERE COALESCE(t.budget_date, t.date) BETWEEN ? AND ?) GROUP BY status`
     )
     .all(period.start, period.end) as { status: string; n: number }[];
   const st = Object.fromEntries(statusRows.map((r) => [r.status, r.n])) as Record<string, number>;
@@ -289,7 +289,7 @@ export function periodKpis(period: Period): PeriodKpis {
       `SELECT COUNT(DISTINCT t.id) AS n,
               COUNT(DISTINCT CASE WHEN EXISTS (SELECT 1 FROM receipts r WHERE r.transaction_id = t.id) THEN t.id END) AS with_slip
        FROM transactions t JOIN transaction_splits s ON s.transaction_id = t.id JOIN categories c ON c.id = s.category_id
-       WHERE t.date BETWEEN ? AND ? AND t.ignored = 0 AND c.requires_slip = 1
+       WHERE COALESCE(t.budget_date, t.date) BETWEEN ? AND ? AND t.ignored = 0 AND c.requires_slip = 1
          AND (t.no_slip_reason IS NULL OR EXISTS (SELECT 1 FROM receipts r WHERE r.transaction_id = t.id))`
     )
     .get(period.start, period.end) as { n: number; with_slip: number };

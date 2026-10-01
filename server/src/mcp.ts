@@ -138,7 +138,7 @@ function buildServer(): McpServer {
           .prepare(
             `SELECT COALESCE(m.name, t.description) AS merchant, COUNT(*) AS transactions, ROUND(-SUM(t.amount), 2) AS spent
              FROM transactions t LEFT JOIN merchants m ON m.id = t.merchant_id
-             WHERE t.amount < 0 AND t.ignored = 0 AND t.date BETWEEN ? AND ?
+             WHERE t.amount < 0 AND t.ignored = 0 AND COALESCE(t.budget_date, t.date) BETWEEN ? AND ?
              GROUP BY COALESCE(m.id, t.description) ORDER BY spent DESC LIMIT 100`
           )
           .all(from ?? p.start, to ?? p.end)

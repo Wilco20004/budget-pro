@@ -204,7 +204,7 @@ export const api = {
     request<Transaction & { also_categorized: number }>(`api/transactions/${id}/category`, json('PUT', { category_id, remember })),
   setSplits: (id: string, splits: { category_id: string; amount: number; note?: string | null }[]) =>
     request<Transaction>(`api/transactions/${id}/splits`, json('PUT', { splits })),
-  patchTransaction: (id: string, p: { notes?: string | null; ignored?: boolean; no_slip_reason?: NoSlipReason | null; payment_plan_id?: string | null }) =>
+  patchTransaction: (id: string, p: { notes?: string | null; ignored?: boolean; no_slip_reason?: NoSlipReason | null; payment_plan_id?: string | null; budget_date?: string | null }) =>
     request<Transaction>(`api/transactions/${id}`, json('PATCH', p)),
   deleteTransaction: (id: string) => request<void>(`api/transactions/${id}`, json('DELETE')),
 

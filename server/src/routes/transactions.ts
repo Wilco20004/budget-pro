@@ -35,11 +35,11 @@ export function queryTransactions(q: TxQuery) {
     to = p.end;
   }
   if (from) {
-    where.push('t.date >= ?');
+    where.push('COALESCE(t.budget_date, t.date) >= ?');
     params.push(from);
   }
   if (to) {
-    where.push('t.date <= ?');
+    where.push('COALESCE(t.budget_date, t.date) <= ?');
     params.push(to);
   }
   if (q.account_id) {
@@ -182,6 +182,12 @@ transactionsRouter.patch(
     if (!t) notFound('Transaction not found');
     if ('notes' in (req.body ?? {})) db.prepare('UPDATE transactions SET notes = ? WHERE id = ?').run(str(req.body.notes), id);
     if ('ignored' in (req.body ?? {})) db.prepare('UPDATE transactions SET ignored = ? WHERE id = ?').run(req.body.ignored ? 1 : 0, id);
+    if ('budget_date' in (req.body ?? {})) {
+      // Counts in another period than its bank date; null puts it back.
+      const d = str(req.body.budget_date);
+      if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new Error('budget_date must be YYYY-MM-DD or null');
+      db.prepare('UPDATE transactions SET budget_date = ? WHERE id = ?').run(d, id);
+    }
     if ('no_slip_reason' in (req.body ?? {})) {
       const r = req.body.no_slip_reason ?? null;
       if (r !== null && !NO_SLIP_REASONS.includes(r)) throw new Error(`no_slip_reason must be one of ${NO_SLIP_REASONS.join(', ')} or null`);

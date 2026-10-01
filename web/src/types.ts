@@ -109,6 +109,8 @@ export interface Transaction {
   no_slip_reason?: NoSlipReason | null;
   payment_plan_id?: string | null;
   payment_plan_name?: string | null;
+  /** The day it counts as in the budget, when not its bank date. */
+  budget_date?: string | null;
   splits: Split[];
 }
 

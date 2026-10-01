@@ -1,5 +1,14 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.26.0 — 2026-10-01
+
+- **Counts in the budget on.** A transaction can count in a different
+  period than its bank date, e.g. a debit order that failed and was
+  collected weeks later counts in the period it was for. Set it in the
+  transaction's details; the list shows "→ date" under the bank date. The
+  budget, dashboard, accounts and settle-up pages follow it, and it is kept
+  when the statement replaces a provisional line.
+
 ## 1.25.1 — 2026-10-01
 
 - **Discovery debit orders** from notifications and emails are recorded as

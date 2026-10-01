@@ -613,3 +613,9 @@ if (!hasColumn('accounts', 'paid_in_full')) {
 if (!hasColumn('accounts', 'owner_id')) {
   db.exec('ALTER TABLE accounts ADD COLUMN owner_id TEXT REFERENCES categories(id) ON DELETE SET NULL');
 }
+
+// 1.26.0: the day a transaction counts as for the budget, when it differs
+// from the bank date (a debit order that failed and was collected late).
+if (!hasColumn('transactions', 'budget_date')) {
+  db.exec('ALTER TABLE transactions ADD COLUMN budget_date TEXT');
+}

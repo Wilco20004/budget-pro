@@ -280,7 +280,9 @@ export function replaceProvisional(statementTxIds: string[]): number {
       if (p.notes && !/^From phone notification/.test(p.notes)) {
         db.prepare('UPDATE transactions SET notes = COALESCE(notes, ?) WHERE id = ?').run(p.notes, s.id);
       }
-      db.prepare('UPDATE transactions SET merchant_id = COALESCE(merchant_id, (SELECT merchant_id FROM transactions WHERE id = ?)) WHERE id = ?').run(p.id, s.id);
+      db.prepare(
+        'UPDATE transactions SET merchant_id = COALESCE(merchant_id, (SELECT merchant_id FROM transactions WHERE id = ?)), budget_date = COALESCE(budget_date, (SELECT budget_date FROM transactions WHERE id = ?)), payment_plan_id = COALESCE(payment_plan_id, (SELECT payment_plan_id FROM transactions WHERE id = ?)) WHERE id = ?'
+      ).run(p.id, p.id, p.id, s.id);
       db.prepare('DELETE FROM transactions WHERE id = ?').run(p.id);
       replaced++;
     }

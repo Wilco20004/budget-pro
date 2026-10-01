@@ -113,6 +113,25 @@ function Detail({
           </select>
         </div>
       )}
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        <span className="small muted">Counts in the budget on:</span>
+        <input
+          type="date"
+          value={tx.budget_date ?? tx.date}
+          onChange={(e) => {
+            const d = e.target.value;
+            if (d) run(api.patchTransaction(tx.id, { budget_date: d === tx.date ? null : d }));
+          }}
+          aria-label="Counts in the budget on"
+        />
+        {tx.budget_date ? (
+          <button className="link small" onClick={() => run(api.patchTransaction(tx.id, { budget_date: null }))}>
+            Use the bank date ({shortDate(tx.date)})
+          </button>
+        ) : (
+          <span className="small muted">e.g. a debit order collected late counts in the period it was for</span>
+        )}
+      </div>
       <div className="row">
         <input
           placeholder="Notes"
@@ -397,6 +416,7 @@ export default function Transactions() {
                   <tr className={`clickable${expanded === t.id ? ' expanded' : ''}`} onClick={() => setExpanded(expanded === t.id ? null : t.id)}>
                     <td className="small" style={{ whiteSpace: 'nowrap' }}>
                       {shortDate(t.date)}
+                      {t.budget_date && <div className="muted" title="Counts in the budget on this day">→ {shortDate(t.budget_date)}</div>}
                     </td>
                     <td>
                       <div style={{ opacity: t.ignored ? 0.5 : 1 }}>{t.description}</div>
