@@ -27,6 +27,8 @@ export interface CategoryKpi {
   group_name: string | null;
   /** A household member's spending money. */
   personal: boolean;
+  /** A fixed cost (debit order): paid once, not tracked against pace. */
+  fixed: boolean;
   /** Part of planned that comes from payment plan instalments due this period. */
   plans_planned: number;
   /** Set on a subcategory; its parent's figures include it. */
@@ -51,12 +53,18 @@ export interface GroupKpi {
   category_ids: (string | null)[];
 }
 
-function spendStatus(planned: number, actual: number, pace: number, fraction: number, income: boolean): CategoryKpi['status'] {
+function spendStatus(planned: number, actual: number, pace: number, fraction: number, income: boolean, fixed = false): CategoryKpi['status'] {
   if (!planned && !actual) return 'no_activity';
   if (!planned) return 'unplanned';
   if (!income && actual > planned + 0.005) return 'over';
-  if (!income && fraction < 1 && actual > pace * 1.1 && actual - pace > 50) return 'ahead_of_pace';
+  if (!income && !fixed && fraction < 1 && actual > pace * 1.1 && actual - pace > 50) return 'ahead_of_pace';
   return 'on_track';
+}
+
+/** By today, a fixed cost should have spent whatever has gone off (up to its
+ *  amount); anything else, its planned share of the elapsed period. */
+function expectedByToday(planned: number, actual: number, fraction: number, fixed: boolean) {
+  return r2(fixed ? Math.min(Math.max(actual, 0), planned) : planned * fraction);
 }
 
 export interface PeriodKpis {
@@ -138,6 +146,7 @@ export function periodKpis(period: Period): PeriodKpis {
     group_id: string | null;
     group_name: string | null;
     personal: number;
+    fixed: number;
     parent_id: string | null;
   }[];
   const plans = planBudget(period).byCategory;
@@ -179,8 +188,9 @@ export function periodKpis(period: Period): PeriodKpis {
     const signed = s?.total ?? 0;
     const actual = r2((moneyIn ? signed : -signed) + fromPaydown);
     const planned = r2((c.planned || 0) + fromPlans + fromGoals);
-    const pace = r2(planned * fraction);
-    const status = spendStatus(planned, actual, pace, fraction, moneyIn);
+    const fixed = Boolean(c.fixed) && !moneyIn;
+    const pace = expectedByToday(planned, actual, fraction, fixed);
+    const status = spendStatus(planned, actual, pace, fraction, moneyIn, fixed);
     categories.push({
       category_id: c.id,
       name: c.name,
@@ -191,6 +201,7 @@ export function periodKpis(period: Period): PeriodKpis {
       group_id: c.kind === 'expense' ? c.group_id : null,
       group_name: c.kind === 'expense' ? c.group_name : null,
       personal: Boolean(c.personal),
+      fixed,
       parent_id: c.parent_id ?? null,
       plans_planned: r2(fromPlans),
       goals_planned: r2(fromGoals),
@@ -199,7 +210,7 @@ export function periodKpis(period: Period): PeriodKpis {
       remaining: r2(planned - actual),
       pct_used: planned ? r2((actual / planned) * 100) : null,
       pace_expected: pace,
-      projected: fraction > 0 ? r2(actual / fraction) : actual,
+      projected: fixed ? Math.max(actual, planned) : fraction > 0 ? r2(actual / fraction) : actual,
       status,
       transaction_count: s?.n ?? 0,
     });
@@ -224,6 +235,7 @@ export function periodKpis(period: Period): PeriodKpis {
       group_id: null,
       group_name: null,
       personal: false,
+      fixed: false,
       parent_id: null,
       plans_planned: 0,
       goals_planned: 0,
@@ -246,9 +258,17 @@ export function periodKpis(period: Period): PeriodKpis {
     p.transaction_count += kids.reduce((a, c) => a + c.transaction_count, 0);
     p.remaining = r2(p.planned - p.actual);
     p.pct_used = p.planned ? r2((p.actual / p.planned) * 100) : null;
-    p.pace_expected = r2(p.planned * fraction);
-    p.projected = fraction > 0 ? r2(p.actual / fraction) : p.actual;
-    p.status = spendStatus(p.planned, p.actual, p.pace_expected, fraction, p.kind === 'income');
+    if (kids.some((c) => c.fixed) && !kids.every((c) => c.fixed)) {
+      // Mixed: fixed children count what's gone off, the rest their share of the period.
+      p.pace_expected = r2(
+        expectedByToday(p.own_planned, p.own_actual, fraction, p.fixed) + kids.reduce((a, c) => a + c.pace_expected, 0)
+      );
+    } else {
+      p.fixed = p.fixed || kids.every((c) => c.fixed);
+      p.pace_expected = expectedByToday(p.planned, p.actual, fraction, p.fixed);
+    }
+    p.projected = p.fixed ? Math.max(p.actual, p.planned) : fraction > 0 ? r2(p.actual / fraction) : p.actual;
+    p.status = spendStatus(p.planned, p.actual, p.pace_expected, fraction, p.kind === 'income' || p.kind === 'loan', p.fixed);
   }
   // Totals and group subtotals count top-level rows only (parents already include their children).
   const top = categories.filter((c) => !c.parent_id);
@@ -301,7 +321,8 @@ export function periodKpis(period: Period): PeriodKpis {
       const members = top.filter((c) => c.kind === 'expense' && (c.group_id ?? null) === g.id);
       const planned = r2(members.reduce((a, c) => a + c.planned, 0));
       const actual = r2(members.reduce((a, c) => a + c.actual, 0));
-      const pace = r2(planned * fraction);
+      // Fixed costs count what's gone off, so a debit order doesn't push the group ahead of pace.
+      const pace = r2(members.reduce((a, c) => a + c.pace_expected, 0));
       return {
         group_id: g.id,
         name: g.name,

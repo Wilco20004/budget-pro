@@ -49,6 +49,7 @@ function GroupBlock({ g, members, all, fraction }: { g: GroupKpi; members: Categ
     group_name: g.name,
     parent_id: null,
     personal: false,
+    fixed: members.length > 0 && members.every((c) => c.fixed),
     plans_planned: members.reduce((a, c) => a + c.plans_planned, 0),
     goals_planned: 0,
   };
@@ -79,6 +80,12 @@ function Bullet({ c, fraction, header = false, parent }: { c: CategoryKpi; fract
           ? { text: `part of ${parent.name}`, color: 'var(--muted)' }
           : c.status === 'unplanned'
             ? { text: 'Not budgeted', color: 'var(--muted)' }
+          : c.fixed && c.planned
+            ? c.remaining <= 0.005
+              ? { text: '✓ Paid', color: 'var(--ink-2)' }
+              : c.actual > 0
+                ? { text: `${money(c.remaining)} still due`, color: 'var(--ink-2)' }
+                : { text: 'Due', color: 'var(--muted)' }
           : c.planned
             ? { text: `${money(c.remaining)} left`, color: 'var(--ink-2)' }
             : null;
@@ -97,11 +104,11 @@ function Bullet({ c, fraction, header = false, parent }: { c: CategoryKpi; fract
       )}
       <div
         className="track"
-        title={`Actual ${money(c.actual)} of ${money(c.planned)} planned${c.plans_planned ? ` (incl. ${money(c.plans_planned)} payment plans)` : ''}${c.goals_planned ? ` (incl. ${money(c.goals_planned)} savings goal top-ups)` : ''}${c.planned ? ` — on-pace spend by today is ${money(c.pace_expected)}` : ''}`}
+        title={`Actual ${money(c.actual)} of ${money(c.planned)} planned${c.plans_planned ? ` (incl. ${money(c.plans_planned)} payment plans)` : ''}${c.goals_planned ? ` (incl. ${money(c.goals_planned)} savings goal top-ups)` : ''}${c.fixed ? ' — fixed amount, not tracked against pace' : c.planned ? ` — on-pace spend by today is ${money(c.pace_expected)}` : ''}`}
       >
         <div className={`fill ${cls}`} style={{ width: pct(c.actual) }} />
         {c.planned > 0 && <div className="plan-mark" style={{ left: `calc(${pct(c.planned)} - 1px)` }} />}
-        {c.planned > 0 && fraction > 0 && fraction < 1 && <div className="pace-mark" style={{ left: pct(c.pace_expected) }} />}
+        {c.planned > 0 && !c.fixed && fraction > 0 && fraction < 1 && <div className="pace-mark" style={{ left: pct(c.pace_expected) }} />}
       </div>
       <div className="figures">
         {money(c.actual, { whole: true })} <span className="muted">/ {money(c.planned, { whole: true })}</span>

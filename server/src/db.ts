@@ -619,3 +619,12 @@ if (!hasColumn('accounts', 'owner_id')) {
 if (!hasColumn('transactions', 'budget_date')) {
   db.exec('ALTER TABLE transactions ADD COLUMN budget_date TEXT');
 }
+
+// 1.27.0: a fixed cost (a debit order, insurance, school fees) goes off once
+// for its amount; it isn't spent through the period, so no pace tracking.
+if (!hasColumn('categories', 'fixed')) {
+  db.exec('ALTER TABLE categories ADD COLUMN fixed INTEGER NOT NULL DEFAULT 0');
+  // Start with what's in the "Fixed" group (Bond, Insurance, Medical aid, …).
+  db.exec(`UPDATE categories SET fixed = 1 WHERE kind IN ('expense', 'savings')
+             AND group_id IN (SELECT id FROM category_groups WHERE name = 'Fixed')`);
+}

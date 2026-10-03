@@ -162,6 +162,8 @@ function categoryInput(body: Record<string, unknown>) {
     // Groups only apply to spending; other kinds are shown in their own sections.
     group_id: kind === 'expense' ? str(body.group_id) : null,
     personal: body.personal && kind === 'expense' ? 1 : 0,
+    // A fixed cost isn't spent through the period: no pace tracking.
+    fixed: body.fixed && (kind === 'expense' || kind === 'savings') ? 1 : 0,
     parent_id: str(body.parent_id),
   };
 }
@@ -208,9 +210,9 @@ categoriesRouter.post(
       c.sort_order = ((db.prepare('SELECT MAX(sort_order) AS m FROM categories').get() as { m: number | null }).m ?? 0) + 1;
     }
     db.prepare(
-      `INSERT INTO categories (id, name, kind, color, icon, requires_slip, default_budget, sort_order, archived, group_id, personal, parent_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, c.personal, c.parent_id, t, t);
+      `INSERT INTO categories (id, name, kind, color, icon, requires_slip, default_budget, sort_order, archived, group_id, personal, fixed, parent_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, c.personal, c.fixed, c.parent_id, t, t);
     // Meat, Starch, Fruit & Veg, … under a parent get starter slip keywords.
     const keywords_added = c.parent_id ? addStarterKeywords(id, c.name) : 0;
     res.status(201).json({ ...(db.prepare('SELECT * FROM categories WHERE id = ?').get(id) as object), keywords_added });
@@ -224,10 +226,10 @@ categoriesRouter.put(
     applyParent(c, String(req.params.id));
     const r = db
       .prepare(
-        `UPDATE categories SET name = ?, kind = ?, color = ?, icon = ?, requires_slip = ?, default_budget = ?, sort_order = ?, archived = ?, group_id = ?, personal = ?, parent_id = ?, updated_at = ?
+        `UPDATE categories SET name = ?, kind = ?, color = ?, icon = ?, requires_slip = ?, default_budget = ?, sort_order = ?, archived = ?, group_id = ?, personal = ?, fixed = ?, parent_id = ?, updated_at = ?
          WHERE id = ?`
       )
-      .run(c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, c.personal, c.parent_id, now(), req.params.id);
+      .run(c.name, c.kind, c.color, c.icon, c.requires_slip, c.default_budget, c.sort_order, c.archived, c.group_id, c.personal, c.fixed, c.parent_id, now(), req.params.id);
     if (!r.changes) notFound('Category not found');
     // Subcategories follow their parent's kind and group.
     db.prepare('UPDATE categories SET kind = ?, group_id = ? WHERE parent_id = ?').run(c.kind, c.kind === 'expense' ? c.group_id : null, req.params.id);

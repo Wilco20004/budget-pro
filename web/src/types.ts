@@ -20,6 +20,8 @@ export interface Category {
   group_id: string | null;
   /** 1 = a household member's spending money. */
   personal: number;
+  /** 1 = a fixed cost (debit order): paid once, no pace tracking. */
+  fixed: number;
   /** Set on a subcategory (Groceries → Meat). */
   parent_id: string | null;
 }
@@ -132,6 +134,8 @@ export interface CategoryKpi {
   group_id: string | null;
   group_name: string | null;
   personal: boolean;
+  /** A fixed cost (debit order): paid once, not tracked against pace. */
+  fixed: boolean;
   /** Set on a subcategory; the parent's figures include it. */
   parent_id: string | null;
   /** On a parent with subcategories: its own (unsplit) figures. */

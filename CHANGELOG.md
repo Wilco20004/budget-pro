@@ -1,5 +1,15 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.27.0 — 2026-10-03
+
+- **Fixed categories.** Tick *Fixed* on a category (Setup → Categories)
+  for a debit order or other set amount that goes off once a period. It is
+  no longer flagged "Ahead of pace" the day it goes off: the dashboard
+  shows *✓ Paid*, *Due* or what's still due, with no pace tick, and its
+  group's pace counts it as paid rather than spread over the period. Going
+  over its amount is still flagged. Categories in the *Fixed* group start
+  out ticked; untick any that are really spent through the period.
+
 ## 1.26.1 — 2026-10-01
 
 - **Remember merchant** no longer repoints a transfer rule. Giving one

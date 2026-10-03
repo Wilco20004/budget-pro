@@ -247,7 +247,11 @@ For the selected period:
   transactions with a slip)
 - **Planned vs actual** per category: bar = spent, solid tick = planned,
   dotted tick = where you'd be if spending evenly through the period.
-  ▲ *Ahead of pace* and ⚠ *Over* are flagged.
+  ▲ *Ahead of pace* and ⚠ *Over* are flagged. A category ticked **Fixed**
+  (Setup → Categories) is a debit order or other set amount that goes off
+  once: it has no pace tick and shows *✓ Paid* or *Due* instead, and it
+  doesn't push its group ahead of pace. Categories in the *Fixed* group start
+  out ticked.
 - **Last 6 periods**: income vs spending, with the planned spend marked.
 
 **Groups** (Setup → Groups) bundle spending categories, e.g. *Fixed* (bond,

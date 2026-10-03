@@ -331,7 +331,9 @@ function Categories({ onError }: { onError: (m: string) => void }) {
           them by keyword or product, and the parent’s figures include them. Meat, Starch, Fruit &amp; Veg, Kitchen and Snacks &amp; Sweets
           come with starter keywords.{' '}
           <strong>Slip required</strong> marks the “smart” categories: a transaction in one of them stays <em>Needs slip</em> until a
-          till slip is attached, and the slip’s lines decide how it’s split (a Checkers run → Groceries + Kids + Medical).
+          till slip is attached, and the slip’s lines decide how it’s split (a Checkers run → Groceries + Kids + Medical).{' '}
+          <strong>Fixed</strong> is for a debit order or other set amount that goes off once: it shows as paid or due, never
+          “ahead of pace”.
         </p>
       </div>
       {msg && (
@@ -350,6 +352,7 @@ function Categories({ onError }: { onError: (m: string) => void }) {
                 <th>Kind</th>
                 <th>Group</th>
                 <th>Slip required</th>
+                <th title="A debit order or other fixed amount: paid once, not tracked against pace">Fixed</th>
                 <th>Colour</th>
                 <th>Archived</th>
                 <th />
@@ -416,6 +419,13 @@ function Categories({ onError }: { onError: (m: string) => void }) {
                   </td>
                   <td>
                     <input type="checkbox" checked={Boolean(c.requires_slip)} onChange={(e) => patch(c, { requires_slip: e.target.checked ? 1 : 0 })} />
+                  </td>
+                  <td>
+                    {c.kind !== 'expense' && c.kind !== 'savings' ? (
+                      <span className="small muted">—</span>
+                    ) : (
+                      <input type="checkbox" checked={Boolean(c.fixed)} onChange={(e) => patch(c, { fixed: e.target.checked ? 1 : 0 })} aria-label="Fixed cost" />
+                    )}
                   </td>
                   <td>
                     <input type="color" value={c.color ?? '#898781'} onChange={(e) => patch(c, { color: e.target.value })} style={{ padding: 0, width: '2.2rem', height: '1.8rem' }} />
