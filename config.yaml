@@ -1,5 +1,5 @@
 name: BudgetPro
-version: "1.28.0"
+version: "1.29.0"
 slug: budgetpro
 description: Payday-to-payday household budget — statement import, slip OCR, planned vs actual KPIs, and an MCP/API for AI analysis
 url: https://github.com/Wilco20004/budget-pro
@@ -19,7 +19,7 @@ webui: "http://[HOST]:[PORT:8097]/"
 ports:
   8097/tcp: 8097
 ports_description:
-  8097/tcp: REST API and MCP endpoint for AI clients (token required; the UI itself is in the HA sidebar)
+  8097/tcp: REST API and MCP endpoint for AI clients (token or connector sign-in required; the UI itself is in the HA sidebar)
 map:
   - share:rw
 options:

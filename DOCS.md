@@ -500,6 +500,53 @@ The token is plain HTTP on your LAN — don't forward port 8097 to the
 internet. If you don't need API/MCP access you can remove the port mapping
 in the add-on's Network settings; the sidebar UI doesn't use it.
 
+### Claude app and mobile (custom connector)
+
+Claude's own apps (claude.ai, Desktop and the iOS/Android apps) can use
+BudgetPro as a **custom connector**. Claude connects from Anthropic's
+servers, also when you're on your phone, so BudgetPro must be reachable
+over **HTTPS from the internet**. Put it behind your reverse proxy, and
+forward **only** these paths to `http://<ha-ip>:8097`:
+
+| Path | Who calls it |
+|---|---|
+| `/mcp` | Anthropic's servers (the MCP tools) |
+| `/.well-known/` | Anthropic's servers (OAuth discovery) |
+| `/oauth/` | Anthropic's servers (register, token), and your browser (`/oauth/authorize`, the approval page) |
+
+Leave everything else (the UI and `/api/`) unproxied. The proxy must pass
+the original host and scheme (`Host` or `X-Forwarded-Host`, and
+`X-Forwarded-Proto: https`); BudgetPro builds its public URLs from them.
+Nginx example:
+
+```nginx
+location ~ ^/(mcp|oauth/|\.well-known/) {
+    proxy_pass http://<ha-ip>:8097;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+```
+
+Then on claude.ai: **Customize → Connectors → Add custom connector**, URL
+`https://<your-domain>/mcp`, no client ID or secret. Claude opens
+BudgetPro's approval page. Paste the API token from **Settings → API & AI
+access** and approve. The connector then also appears in the Claude mobile
+app on the same account. Free plans allow one custom connector.
+
+How it's secured:
+
+- Claude signs in with OAuth (automatic registration, PKCE). It never sees
+  the API token. It gets a 1-hour access token, which it renews by itself
+  with a 90-day refresh token that's replaced on every use.
+- Connector tokens work only on `/mcp`, never on `/api`. Only Claude's
+  callback address (or a local loopback client) can receive a sign-in.
+  After 10 wrong tokens on the approval page, it locks for 15 minutes.
+- A request that came through a proxy (`X-Forwarded-For`) is never trusted
+  just for arriving from loopback.
+- **Settings → Claude app & mobile** lists connected apps; *Sign out*
+  removes one. **Regenerating the API token signs every connector out.**
+
 ## Data
 
 Everything lives in the add-on's `/data` (SQLite `budgetpro.db` plus

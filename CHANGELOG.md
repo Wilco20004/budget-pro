@@ -1,5 +1,18 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.29.0 — 2026-10-12
+
+- **Claude app & mobile connector.** BudgetPro's MCP endpoint can now be
+  added to Claude as a custom connector (claude.ai, Desktop, and the
+  iOS/Android apps). Claude signs in with OAuth: you approve it once with
+  your API token, and it renews its own short-lived tokens. You need a
+  reverse proxy that serves `/mcp`, `/oauth/` and `/.well-known/` over
+  HTTPS (see Documentation). Settings → *Claude app & mobile* lists the
+  connected apps and can sign them out. Regenerating the API token signs
+  them all out. The existing Bearer token still works for Claude Code.
+- Requests forwarded by a proxy are no longer trusted just because they
+  arrive from loopback.
+
 ## 1.28.0 — 2026-10-04
 
 - **NPU slip reading.** Slips can be read by the new *BudgetPro OCR*

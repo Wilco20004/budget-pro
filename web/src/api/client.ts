@@ -125,10 +125,21 @@ export async function fetchReceiptFileUrl(id: string): Promise<string> {
   return URL.createObjectURL(await res.blob());
 }
 
+/** An app (a Claude custom connector) signed in over OAuth. */
+export interface ConnectedApp {
+  id: string;
+  name: string | null;
+  created_at: string;
+  last_signed_in: string | null;
+  last_used_at: string | null;
+}
+
 export const api = {
   settings: () => request<Settings>('api/settings'),
   updateSettings: (s: Partial<Settings>) => request<Settings>('api/settings', json('PUT', s)),
   regenerateToken: () => request<{ api_token: string }>('api/settings/regenerate-token', json('POST')),
+  connectedApps: () => request<ConnectedApp[]>('api/oauth/apps'),
+  disconnectApp: (id: string) => request<{ ok: boolean }>(`api/oauth/apps/${id}`, json('DELETE')),
 
   periods: (count = 12) => request<{ current: Period; periods: Period[] }>(`api/periods${qs({ count })}`),
 

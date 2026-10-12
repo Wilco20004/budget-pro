@@ -5,6 +5,7 @@ import { usePeriod } from '../components/PeriodContext';
 import { setCurrency } from '../format';
 import { Settings } from '../types';
 import ConfirmButton from '../components/ConfirmButton';
+import ConnectorCard from '../components/ConnectorCard';
 
 function BackupCard({ onRestored }: { onRestored: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -247,6 +248,8 @@ export default function SettingsPage() {
           Assistant, swap in its LAN IP.
         </p>
       </div>
+
+      <ConnectorCard />
     </>
   );
 }

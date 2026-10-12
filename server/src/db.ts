@@ -628,3 +628,36 @@ if (!hasColumn('categories', 'fixed')) {
   db.exec(`UPDATE categories SET fixed = 1 WHERE kind IN ('expense', 'savings')
              AND group_id IN (SELECT id FROM category_groups WHERE name = 'Fixed')`);
 }
+
+// 1.29.0: OAuth for Claude custom connectors (see oauth.ts). Codes and tokens
+// are stored only as SHA-256 hashes.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS oauth_clients (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    redirect_uris TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS oauth_codes (
+    code_hash TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+    redirect_uri TEXT NOT NULL,
+    code_challenge TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS oauth_tokens (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+    access_hash TEXT NOT NULL UNIQUE,
+    refresh_hash TEXT NOT NULL UNIQUE,
+    scope TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    api_token_tag TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    refresh_expires_at INTEGER NOT NULL,
+    last_used_at TEXT,
+    created_at TEXT NOT NULL
+  );
+`);

@@ -7,6 +7,7 @@ import { publishSensors } from './ha';
 import { startEmailWatcher } from './email/importer';
 import { startInboxWatcher } from './inbox';
 import { mcpRouter } from './mcp';
+import { connectedAppsRouter, oauthRouter, wellKnownRouter } from './oauth';
 import { backupRouter } from './routes/backup';
 import { emailRouter } from './routes/email';
 import { whatsappRouter } from './routes/whatsapp';
@@ -42,8 +43,15 @@ app.post('/webhooks/whatsapp/:endpoint', whatsappWebhook);
 // Unauthenticated on purpose: container health checks.
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
+// OAuth for Claude custom connectors: discovery and sign-in are public by
+// design (approving needs the API token); see oauth.ts.
+app.use('/.well-known', wellKnownRouter);
+app.use('/oauth', oauthRouter);
+
 app.use('/api', requireAuth);
 app.use('/mcp', requireAuth);
+
+app.use('/api/oauth/apps', connectedAppsRouter);
 
 app.use('/api/settings', settingsRouter);
 app.use('/api/periods', periodsRouter);
