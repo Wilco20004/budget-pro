@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { db, now } from '../db';
 import { splitPatterns } from './categorize';
+import { balanceAt } from './debts';
 import { currentPeriod, nextPeriod, Period } from './periods';
 
 // Savings goals — see the savings_goals comment in db.ts for physical vs
@@ -39,10 +40,10 @@ export function balanceSource(g: GoalRow): 'account' | 'movements' {
 }
 
 export function accountBalance(accountId: string): number {
-  const last = db
-    .prepare('SELECT balance FROM transactions WHERE account_id = ? AND balance IS NOT NULL ORDER BY date DESC, created_at DESC LIMIT 1')
-    .get(accountId) as { balance: number } | undefined;
-  if (last) return r2(last.balance);
+  // Lines imported together share created_at, so pick the day's closing line
+  // the way debts do rather than by insertion time.
+  const last = balanceAt(accountId, '9999-12-31');
+  if (last !== null) return r2(last);
   // No running balance on the statement: sum what was imported.
   return r2((db.prepare('SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ? AND ignored = 0').get(accountId) as { s: number }).s);
 }

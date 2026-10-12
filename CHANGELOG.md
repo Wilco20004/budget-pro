@@ -1,5 +1,16 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.27.1 — 2026-10-12
+
+- **Slip waivers survive a statement import.** When a statement line
+  replaced a provisional (phone/email alert) transaction, a "no slip —
+  lost / one category" mark on it was dropped and it went back to *needs
+  slip*. It's now carried over with the category, slip and notes.
+- **Account balance on same-day lines.** A savings goal tracking an account
+  and the Accounts list could show the balance after the wrong line when
+  several lines from one import share a date (interest + reward on the
+  same day). They now pick the day's closing line the way debts do.
+
 ## 1.27.0 — 2026-10-03
 
 - **Fixed categories.** Tick *Fixed* on a category (Setup → Categories)

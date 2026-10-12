@@ -140,7 +140,7 @@ function categoryId(where: string): string | null {
 }
 
 /** The account's balance at the end of a day (statement order within a day). */
-function balanceAt(accountId: string, date: string): number | null {
+export function balanceAt(accountId: string, date: string): number | null {
   const last = db
     .prepare('SELECT MAX(date) AS d FROM transactions WHERE account_id = ? AND date <= ? AND balance IS NOT NULL')
     .get(accountId, date) as { d: string | null };

@@ -7,6 +7,7 @@ import { emailStatus } from '../email/importer';
 import { inboxStatus } from '../inbox';
 import { claudeAvailable } from '../receipts/engines';
 import { autoCategorize, suggestMerchantPattern } from '../services/categorize';
+import { balanceAt } from '../services/debts';
 import { addStarterKeywords, resortIntoSubcategories } from '../services/subcategories';
 import { currentPeriod, periodFor, recentPeriods, nextPeriod } from '../services/periods';
 import { getAiModel, getApiToken, getSettings, regenerateApiToken, updateSettings } from '../settings';
@@ -74,17 +75,15 @@ export const accountsRouter = Router();
 accountsRouter.get(
   '/',
   h((_req, res) => {
-    res.json(
-      db
-        .prepare(
-          `SELECT a.*,
-             (SELECT COUNT(*) FROM transactions t WHERE t.account_id = a.id) AS transaction_count,
-             (SELECT MAX(date) FROM transactions t WHERE t.account_id = a.id) AS last_transaction_date,
-             (SELECT balance FROM transactions t WHERE t.account_id = a.id AND balance IS NOT NULL ORDER BY date DESC, created_at DESC LIMIT 1) AS last_balance
-           FROM accounts a ORDER BY a.name`
-        )
-        .all()
-    );
+    const rows = db
+      .prepare(
+        `SELECT a.*,
+           (SELECT COUNT(*) FROM transactions t WHERE t.account_id = a.id) AS transaction_count,
+           (SELECT MAX(date) FROM transactions t WHERE t.account_id = a.id) AS last_transaction_date
+         FROM accounts a ORDER BY a.name`
+      )
+      .all() as { id: string }[];
+    res.json(rows.map((a) => ({ ...a, last_balance: balanceAt(a.id, '9999-12-31') })));
   })
 );
 
