@@ -5,7 +5,7 @@ import { db, now, UPLOADS_DIR } from '../db';
 import { categoryForItem, matchMerchant, MerchantRow, upsertProduct } from '../services/categorize';
 import { addDays } from '../services/periods';
 import { getSettings } from '../settings';
-import { claudeAvailable, claudeExtract, parseReceiptText, pdfText, tesseractText } from './engines';
+import { claudeAvailable, claudeExtract, parseReceiptText, pdfText, serviceAvailable, serviceText, tesseractText } from './engines';
 import { ExtractedReceipt, KnownProducts } from './parseText';
 
 export interface ReceiptRow {
@@ -60,9 +60,24 @@ async function extract(r: ReceiptRow): Promise<{ engine: string; text: string | 
     return { engine: 'claude', text: null, data: await claudeExtract(buf, r.mime_type, names) };
   }
   const isPdf = r.mime_type === 'application/pdf';
-  const text = isPdf ? await pdfText(buf) : await tesseractText(abs);
-  // PDF text is exact; only OCR output gets its misread digits corrected.
-  return { engine: isPdf ? 'pdf-text' : 'tesseract', text, data: parseReceiptText(text, { ocr: !isPdf, known: KNOWN_PRODUCTS }) };
+  if (isPdf) {
+    // PDF text is exact; only OCR output gets its misread digits corrected.
+    const text = await pdfText(buf);
+    return { engine: 'pdf-text', text, data: parseReceiptText(text, { ocr: false, known: KNOWN_PRODUCTS }) };
+  }
+  let engine = 'tesseract';
+  let text: string | null = null;
+  if (setting === 'service' || (setting === 'auto' && (await serviceAvailable()))) {
+    try {
+      text = await serviceText(abs);
+      engine = 'paddle-npu';
+    } catch (e) {
+      if (setting === 'service') throw e;
+      // Automatic: the add-on stopped mid-way, so Tesseract reads this one.
+    }
+  }
+  text ??= await tesseractText(abs);
+  return { engine, text, data: parseReceiptText(text, { ocr: true, known: KNOWN_PRODUCTS }) };
 }
 
 /** OCR / extract a slip, store its lines with categories, and try to link it

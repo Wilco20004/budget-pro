@@ -1,5 +1,15 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.28.0 — 2026-10-04
+
+- **NPU slip reading.** Slips can be read by the new *BudgetPro OCR*
+  add-on, which runs PaddleOCR on the Rock 5B's NPU: offline, about 3 s a
+  slip, and on 12 real slips it got 26 of 36 line prices and 7 of 9
+  totals right, against 15 and 5 for the built-in OCR. *Automatic* uses it
+  whenever it's running (after Claude, if a key is set) and falls back to
+  the built-in OCR otherwise. Settings → Slip reading has its address and
+  shows whether it's reachable.
+
 ## 1.27.1 — 2026-10-12
 
 - **Slip waivers survive a statement import.** When a statement line

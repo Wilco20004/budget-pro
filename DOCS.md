@@ -229,12 +229,19 @@ stored for slips logged this way.
   Assistant machine; nothing leaves your network. Good on clean slips and
   PDFs, weaker on faded or crumpled thermal paper. A slip takes 10–60 s on
   an SBC.
+- **OCR add-on** (optional, Rockchip RK3588 boards such as the Rock 5B):
+  the separate *BudgetPro OCR* add-on runs PaddleOCR (PP-OCRv4) on the
+  board's NPU. Also offline, about 3 s a slip, and far fewer misread
+  prices than the built-in OCR (on 12 real slips: 26 of 36 line prices
+  right against 15). BudgetPro finds it at `http://local-budgetpro-ocr:8099`
+  (Settings → Slip reading shows whether it's running).
 - **Claude** (optional) reads messy slips far better and suggests a
   category per line. Put an Anthropic API key in the add-on's
   **Configuration** tab (`anthropic_api_key`); the slip image is sent to
   Anthropic's API. `ai_model` defaults to `claude-opus-5`. Choose the
-  engine in Settings → Slip reading (*Automatic* uses Claude when a key is
-  set).
+  engine in Settings → Slip reading. *Automatic* uses Claude when a key is
+  set, else the OCR add-on when it answers, else the built-in OCR; if the
+  add-on fails on a slip, the built-in OCR reads that one.
 
 ## Dashboard & KPIs
 

@@ -5,7 +5,7 @@ import { db, now } from '../db';
 import { homeAssistantAvailable, publishSensors } from '../ha';
 import { emailStatus } from '../email/importer';
 import { inboxStatus } from '../inbox';
-import { claudeAvailable } from '../receipts/engines';
+import { claudeAvailable, serviceAvailable } from '../receipts/engines';
 import { autoCategorize, suggestMerchantPattern } from '../services/categorize';
 import { balanceAt } from '../services/debts';
 import { addStarterKeywords, resortIntoSubcategories } from '../services/subcategories';
@@ -20,12 +20,13 @@ export const settingsRouter = Router();
 
 settingsRouter.get(
   '/',
-  h((_req, res) => {
+  h(async (_req, res) => {
     res.json({
       ...getSettings(),
       api_token: getApiToken(),
       home_assistant: homeAssistantAvailable(),
       claude_available: claudeAvailable(),
+      ocr_service_available: await serviceAvailable(),
       ai_model: getAiModel(),
       inbox: inboxStatus(),
       email: emailStatus(),

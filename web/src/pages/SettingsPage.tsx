@@ -161,15 +161,42 @@ export default function SettingsPage() {
           <label className="field">
             Engine
             <select value={s.ocr_engine} onChange={(e) => save({ ocr_engine: e.target.value as Settings['ocr_engine'] })}>
-              <option value="auto">Automatic (Claude if a key is set, else built-in OCR)</option>
+              <option value="auto">Automatic (Claude if a key is set, else the OCR add-on, else built-in OCR)</option>
+              <option value="service">OCR add-on only (offline)</option>
               <option value="tesseract">Built-in OCR only (offline)</option>
               <option value="claude">Claude only</option>
             </select>
           </label>
+          <label className="field">
+            OCR add-on address
+            <input
+              defaultValue={s.ocr_service_url}
+              key={s.ocr_service_url}
+              placeholder="http://local-budgetpro-ocr:8099"
+              onBlur={(e) =>
+                e.target.value.trim() !== s.ocr_service_url &&
+                api
+                  .updateSettings({ ocr_service_url: e.target.value.trim() })
+                  .then(() => api.settings())
+                  .then((n) => {
+                    setS(n);
+                    setMsg('Saved.');
+                  })
+                  .catch((err) => setError(err.message))
+              }
+            />
+          </label>
         </div>
         <p className="small muted" style={{ marginBottom: 0 }}>
-          Built-in OCR (Tesseract) runs on the Home Assistant box and never sends anything out, but struggles with faded or
-          crumpled thermal slips. Claude reads them far better and suggests categories per line; it needs an Anthropic API key in the
+          The <strong>OCR add-on</strong> (BudgetPro OCR) reads slips with PaddleOCR on the Rock 5B’s NPU: offline, about 3 s a
+          slip, and far fewer misread prices than the built-in OCR.{' '}
+          {s.ocr_service_url
+            ? s.ocr_service_available
+              ? '✓ Add-on is running.'
+              : 'Add-on not reachable; the built-in OCR is used instead.'
+            : 'No address set, so it isn’t used.'}{' '}
+          Built-in OCR (Tesseract) also runs on the box and never sends anything out, but struggles with small fonts and faded or
+          crumpled thermal slips. Claude reads them best and suggests categories per line; it needs an Anthropic API key in the
           add-on’s Configuration tab and sends the slip image to Anthropic.{' '}
           {s.claude_available ? `✓ Key configured (model ${s.ai_model}).` : 'No key configured.'}
         </p>

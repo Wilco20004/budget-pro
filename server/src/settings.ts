@@ -86,7 +86,9 @@ export interface AppSettings {
   period_start_day: number;
   weekend_rule: WeekendRule;
   currency_symbol: string;
-  ocr_engine: 'auto' | 'tesseract' | 'claude';
+  ocr_engine: 'auto' | 'tesseract' | 'service' | 'claude';
+  /** The OCR add-on (PaddleOCR on the NPU); '' = not used. */
+  ocr_service_url: string;
   publish_ha_sensors: boolean;
   /** WhatsApp numbers whose photos/files are imported (comma-separated). */
   whatsapp_numbers: string;
@@ -105,6 +107,7 @@ const DEFAULTS: AppSettings = {
   weekend_rule: 'previous_business_day',
   currency_symbol: 'R',
   ocr_engine: 'auto',
+  ocr_service_url: 'http://local-budgetpro-ocr:8099',
   publish_ha_sensors: true,
   whatsapp_numbers: '',
   whatsapp_media_base: 'https://qa.crm.neuracore.co.za',
@@ -148,7 +151,17 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
     .filter((c) => c.pattern && c.member_id)
     .slice(0, 50);
   next.settle_exclude = Array.isArray(next.settle_exclude) ? [...new Set(next.settle_exclude.map(String))].slice(0, 200) : [];
-  if (!['auto', 'tesseract', 'claude'].includes(next.ocr_engine)) next.ocr_engine = DEFAULTS.ocr_engine;
+  if (!['auto', 'tesseract', 'service', 'claude'].includes(next.ocr_engine)) next.ocr_engine = DEFAULTS.ocr_engine;
+  try {
+    const raw = String(next.ocr_service_url ?? '').trim();
+    if (raw) {
+      const u = new URL(raw);
+      if (!/^https?:$/.test(u.protocol)) throw new Error();
+      next.ocr_service_url = u.origin;
+    } else next.ocr_service_url = '';
+  } catch {
+    next.ocr_service_url = DEFAULTS.ocr_service_url;
+  }
   next.publish_ha_sensors = Boolean(next.publish_ha_sensors);
   next.currency_symbol = String(next.currency_symbol || DEFAULTS.currency_symbol).slice(0, 5);
   next.whatsapp_numbers = String(next.whatsapp_numbers ?? '').slice(0, 500);

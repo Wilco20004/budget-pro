@@ -421,13 +421,16 @@ export interface Settings {
   period_start_day: number;
   weekend_rule: 'none' | 'previous_business_day' | 'next_business_day';
   currency_symbol: string;
-  ocr_engine: 'auto' | 'tesseract' | 'claude';
+  ocr_engine: 'auto' | 'tesseract' | 'service' | 'claude';
+  ocr_service_url: string;
   publish_ha_sensors: boolean;
   whatsapp_numbers: string;
   whatsapp_media_base: string;
   api_token: string;
   home_assistant: boolean;
   claude_available: boolean;
+  /** Whether the OCR add-on answered just now. */
+  ocr_service_available: boolean;
   ai_model: string;
   inbox: { dir: string; exists: boolean; recent: { at: string; file: string; ok: boolean; message: string }[] };
   internal_url: string | null;

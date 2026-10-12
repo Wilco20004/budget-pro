@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createWorker, OEM, Worker } from 'tesseract.js';
 import { extractTextItems } from 'unpdf';
 import { DATA_DIR } from '../db';
-import { getAiModel, getAnthropicKey } from '../settings';
+import { getAiModel, getAnthropicKey, getSettings } from '../settings';
 import { ExtractedReceipt, parseReceiptText } from './parseText';
 
 // ---- Plain text from a PDF slip (Checkers/Woolies/Dis-Chem e-slips) --------
@@ -82,6 +82,51 @@ export function tesseractText(filePath: string): Promise<string> {
   });
   queue = job.catch(() => undefined);
   return job;
+}
+
+// ---- OCR add-on (PaddleOCR on the Rock 5B's NPU) ----------------------------
+
+// A separate add-on runs PaddleOCR (PP-OCRv4) on the RK3588 NPU. On 12 real
+// slips it got 26 of 36 line prices right against Tesseract's 15, and 7 of 9
+// totals against 5, in about 3 s a slip instead of 9. It returns plain lines
+// ("name ... price"), so the same parser and digit fixes apply.
+
+let serviceSeen: { url: string; ok: boolean; at: number } | null = null;
+
+/** Whether the OCR add-on answers; remembered for a minute either way. */
+export async function serviceAvailable(): Promise<boolean> {
+  const url = getSettings().ocr_service_url;
+  if (!url) return false;
+  if (serviceSeen && serviceSeen.url === url && Date.now() - serviceSeen.at < 60_000) return serviceSeen.ok;
+  let ok = false;
+  try {
+    const r = await fetch(`${url}/health`, { signal: AbortSignal.timeout(2000) });
+    ok = r.ok && Boolean(((await r.json()) as { ok?: boolean }).ok);
+  } catch {
+    ok = false;
+  }
+  serviceSeen = { url, ok, at: Date.now() };
+  return ok;
+}
+
+export async function serviceText(filePath: string): Promise<string> {
+  const url = getSettings().ocr_service_url;
+  if (!url) throw new Error('No OCR add-on address set (Settings → Slip reading).');
+  const r = await fetch(`${url}/ocr`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: fs.readFileSync(filePath),
+    signal: AbortSignal.timeout(120_000),
+  }).catch(() => {
+    serviceSeen = null;
+    throw new Error(`The OCR add-on isn’t reachable at ${url}. Is BudgetPro OCR running?`);
+  });
+  const body = (await r.json().catch(() => ({}))) as { text?: string; error?: string };
+  if (!r.ok || typeof body.text !== 'string') {
+    serviceSeen = null;
+    throw new Error(`OCR add-on: ${body.error ?? `HTTP ${r.status}`}`);
+  }
+  return body.text;
 }
 
 // ---- Claude (optional, much better at crumpled / faded slips) --------------

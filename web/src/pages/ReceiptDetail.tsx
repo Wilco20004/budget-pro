@@ -181,7 +181,7 @@ export default function ReceiptDetail() {
             <div className="notice small">Logged by Claude over MCP from a photo — no image is stored for this slip.</div>
           )}
           {r.engine && !r.ocr_text && r.mime_type !== 'none' && (
-            <p className="small muted">Read by {r.engine === 'claude' ? 'Claude' : r.engine}.</p>
+            <p className="small muted">Read by {r.engine === 'claude' ? 'Claude' : r.engine === 'paddle-npu' ? 'the OCR add-on (NPU)' : r.engine}.</p>
           )}
         </div>
 
