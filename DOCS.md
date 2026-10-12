@@ -514,10 +514,21 @@ forward **only** these paths to `http://<ha-ip>:8097`:
 | `/.well-known/` | Anthropic's servers (OAuth discovery) |
 | `/oauth/` | Anthropic's servers (register, token), and your browser (`/oauth/authorize`, the approval page) |
 
-Leave everything else (the UI and `/api/`) unproxied. The proxy must pass
-the original host and scheme (`Host` or `X-Forwarded-Host`, and
-`X-Forwarded-Proto: https`); BudgetPro builds its public URLs from them.
-Nginx example:
+Leave everything else (the UI and `/api/`) unproxied if your proxy allows
+it. If it can only forward a whole path, that's fine too. For example,
+`https://ha.example.com/budget/…` can forward to
+`http://<ha-ip>:8097/…`, whether or not the proxy strips `/budget`.
+
+Set **Settings → Claude app & mobile → Public URL** to how the internet
+reaches BudgetPro, including any such path (`https://ha.example.com/budget`).
+Settings then shows the exact connector URL to paste into Claude. Under a
+path, BudgetPro also publishes its sign-in details at
+`<public URL>/.well-known/openid-configuration`, because the standard
+location at the domain root belongs to whatever else runs there.
+
+Without a Public URL, BudgetPro works its URLs out from the proxy's
+headers (`Host` or `X-Forwarded-Host`, `X-Forwarded-Proto: https`, and
+`X-Forwarded-Prefix` for a path). Nginx example on its own domain:
 
 ```nginx
 location ~ ^/(mcp|oauth/|\.well-known/) {
@@ -529,7 +540,7 @@ location ~ ^/(mcp|oauth/|\.well-known/) {
 ```
 
 Then on claude.ai: **Customize → Connectors → Add custom connector**, URL
-`https://<your-domain>/mcp`, no client ID or secret. Claude opens
+`<public URL>/mcp`, no client ID or secret. Claude opens
 BudgetPro's approval page. Paste the API token from **Settings → API & AI
 access** and approve. The connector then also appears in the Claude mobile
 app on the same account. Free plans allow one custom connector.

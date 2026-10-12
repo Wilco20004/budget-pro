@@ -1,5 +1,14 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.29.1 — 2026-10-12
+
+- **Connector behind a path.** Settings → *Claude app & mobile* has a
+  **Public URL** (e.g. `https://ha.example.com/budget`) for proxies that
+  serve BudgetPro under a path on another app's domain. The OAuth discovery
+  and the connector URL use it, and the sign-in details are also published
+  at `<public URL>/.well-known/openid-configuration`, since the domain root
+  isn't BudgetPro's. Requests that still carry the path are routed too.
+
 ## 1.29.0 — 2026-10-12
 
 - **Claude app & mobile connector.** BudgetPro's MCP endpoint can now be

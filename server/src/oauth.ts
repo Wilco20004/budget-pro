@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import express, { Request, Response, Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { db, now } from './db';
-import { getApiToken } from './settings';
+import { getApiToken, getSettings } from './settings';
 import { h, str } from './util';
 
 // OAuth 2.1 for Claude custom connectors (claude.ai, Desktop, mobile). Claude
@@ -11,8 +11,12 @@ import { h, str } from './util';
 // to /oauth/authorize — where you approve with the API token — and gets
 // short-lived access tokens it refreshes on its own.
 //
-// Everything public URL-shaped is derived from the request (X-Forwarded-*
-// from the proxy), so there's no "public URL" setting to keep in sync.
+// Public URLs come from Settings → Public URL when set (needed when the proxy
+// serves BudgetPro under a path, e.g. https://ha.example.com/budget, since the
+// stripped prefix never reaches us); otherwise from the request (X-Forwarded-*
+// and X-Forwarded-Prefix). Under a path the RFC 8414 location for the issuer
+// sits at the domain root, which isn't ours, so the metadata is also served at
+// <issuer>/.well-known/openid-configuration — the MCP spec's last fallback.
 // Grants are tied to the API token: regenerating it signs every connector out.
 
 const ACCESS_TTL = 60 * 60; // 1 h
@@ -35,11 +39,25 @@ function firstHeader(v: string | string[] | undefined): string | undefined {
   return (Array.isArray(v) ? v[0] : v)?.split(',')[0].trim() || undefined;
 }
 
-/** https://budget.example.com — as the client sees us through the proxy. */
+/** https://ha.example.com/budget — as the client sees us through the proxy. */
 export function publicBase(req: Request): string {
+  const configured = getSettings().public_url;
+  if (configured) return configured;
   const proto = firstHeader(req.headers['x-forwarded-proto']) ?? req.protocol;
   const host = firstHeader(req.headers['x-forwarded-host']) ?? req.headers.host ?? 'localhost';
-  return `${proto}://${host}`;
+  const prefix = (firstHeader(req.headers['x-forwarded-prefix']) ?? '').replace(/\/+$/, '');
+  return `${proto}://${host}${prefix.startsWith('/') ? prefix : ''}`;
+}
+
+/** Proxies that forward /budget/mcp as-is (prefix not stripped) still land
+ *  on the right route: drop Public URL's path from the front of the request. */
+export function stripPublicPrefix(req: Request, _res: Response, next: () => void) {
+  const url = getSettings().public_url;
+  const prefix = url ? new URL(url).pathname.replace(/\/+$/, '') : '';
+  if (prefix && (req.url === prefix || req.url.startsWith(prefix + '/') || req.url.startsWith(prefix + '?'))) {
+    req.url = req.url.slice(prefix.length) || '/';
+  }
+  next();
 }
 
 export function resourceMetadataUrl(req: Request): string {
@@ -122,6 +140,7 @@ const authServer = (req: Request, res: Response) => {
 };
 wellKnownRouter.get('/oauth-authorization-server', authServer);
 wellKnownRouter.get('/oauth-authorization-server/*', authServer);
+wellKnownRouter.get('/openid-configuration', authServer);
 
 export const oauthRouter = Router();
 oauthRouter.use(express.urlencoded({ extended: false }));

@@ -7,7 +7,7 @@ import { publishSensors } from './ha';
 import { startEmailWatcher } from './email/importer';
 import { startInboxWatcher } from './inbox';
 import { mcpRouter } from './mcp';
-import { connectedAppsRouter, oauthRouter, wellKnownRouter } from './oauth';
+import { connectedAppsRouter, oauthRouter, stripPublicPrefix, wellKnownRouter } from './oauth';
 import { backupRouter } from './routes/backup';
 import { emailRouter } from './routes/email';
 import { whatsappRouter } from './routes/whatsapp';
@@ -34,6 +34,7 @@ import { transactionsRouter } from './routes/transactions';
 const app = express();
 const PORT = Number(process.env.PORT) || 8097;
 
+app.use(stripPublicPrefix);
 app.use(express.json({ limit: '2mb' }));
 
 // WhatsApp platform callbacks: checked by their own X-Api-Key, not the API

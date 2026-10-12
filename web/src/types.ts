@@ -423,6 +423,8 @@ export interface Settings {
   currency_symbol: string;
   ocr_engine: 'auto' | 'tesseract' | 'service' | 'claude';
   ocr_service_url: string;
+  /** How the internet reaches BudgetPro through a reverse proxy; '' = derived. */
+  public_url: string;
   publish_ha_sensors: boolean;
   whatsapp_numbers: string;
   whatsapp_media_base: string;

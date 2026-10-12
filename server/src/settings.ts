@@ -100,6 +100,10 @@ export interface AppSettings {
   settle_exclude: string[];
   /** Money in whose wording names the sender: {pattern ("A|B"), member_id}. */
   settle_incoming: { pattern: string; member_id: string }[];
+  /** How the internet reaches BudgetPro through your reverse proxy, path
+   *  included (https://ha.example.com/budget); '' = work it out from the
+   *  request. Claude custom connectors need it when the proxy adds a path. */
+  public_url: string;
 }
 
 const DEFAULTS: AppSettings = {
@@ -114,6 +118,7 @@ const DEFAULTS: AppSettings = {
   settle_split: 'income',
   settle_exclude: [],
   settle_incoming: [],
+  public_url: '',
 };
 
 function getRaw(key: string): string | undefined {
@@ -171,6 +176,16 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
     next.whatsapp_media_base = u.origin;
   } catch {
     next.whatsapp_media_base = DEFAULTS.whatsapp_media_base;
+  }
+  try {
+    const raw = String(next.public_url ?? '').trim();
+    if (raw) {
+      const u = new URL(raw);
+      if (!/^https?:$/.test(u.protocol)) throw new Error();
+      next.public_url = (u.origin + u.pathname).replace(/\/+$/, '');
+    } else next.public_url = '';
+  } catch {
+    throw new Error('Public URL must look like https://ha.example.com/budget');
   }
   setRaw('app', JSON.stringify(next));
   return next;

@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { api, ConnectedApp } from '../api/client';
 import { shortDate } from '../format';
 import ConfirmButton from './ConfirmButton';
+import Copyable from './Copyable';
 
-/** Claude custom connector (claude.ai, Desktop, mobile): how to add it, and
- *  the apps signed in over OAuth, each of which can be signed out. */
+/** Claude custom connector (claude.ai, Desktop, mobile): the public URL, how
+ *  to add it, and the apps signed in over OAuth, each of which can be signed out. */
 export default function ConnectorCard() {
   const [apps, setApps] = useState<ConnectedApp[] | null>(null);
+  const [publicUrl, setPublicUrl] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = () =>
@@ -16,27 +19,65 @@ export default function ConnectorCard() {
       .catch((e: Error) => setError(e.message));
   useEffect(() => {
     load();
+    api
+      .settings()
+      .then((s) => setPublicUrl(s.public_url))
+      .catch((e: Error) => setError(e.message));
   }, []);
+
+  function savePublicUrl(value: string) {
+    if (value === publicUrl) return;
+    setError(null);
+    setMsg(null);
+    api
+      .updateSettings({ public_url: value })
+      .then((s) => {
+        setPublicUrl(s.public_url);
+        setMsg('Saved.');
+      })
+      .catch((e: Error) => setError(e.message));
+  }
+
+  const connectorUrl = publicUrl ? `${publicUrl}/mcp` : null;
 
   return (
     <div className="card">
       <h2>Claude app &amp; mobile (connector)</h2>
       <p className="small" style={{ marginTop: 0 }}>
         Claude reaches a connector from Anthropic’s servers, also when you use it on your phone, so BudgetPro has to be reachable over{' '}
-        <b>HTTPS from the internet</b> through your reverse proxy. Forward only <code>/mcp</code>, <code>/oauth/</code> and{' '}
-        <code>/.well-known/</code> to port 8097 (see the add-on’s Documentation tab).
+        <b>HTTPS from the internet</b> through your reverse proxy, at least <code>/mcp</code>, <code>/oauth/</code> and{' '}
+        <code>/.well-known/</code> (see the add-on’s Documentation tab).
       </p>
+      {publicUrl !== null && (
+        <label className="field">
+          Public URL (how the internet reaches BudgetPro, including any path your proxy adds)
+          <input
+            defaultValue={publicUrl}
+            key={publicUrl}
+            placeholder="https://ha.example.com/budget"
+            onBlur={(e) => savePublicUrl(e.target.value.trim())}
+          />
+        </label>
+      )}
+      {msg && <p className="small muted">{msg}</p>}
+      {error && <p className="small error">{error}</p>}
       <ol className="small">
         <li>
-          On claude.ai: <b>Customize → Connectors → Add custom connector</b>, URL <code>https://&lt;your-domain&gt;/mcp</code>, no
-          client ID or secret.
+          On claude.ai: <b>Customize → Connectors → Add custom connector</b>, URL{' '}
+          {connectorUrl ? (
+            <>
+              <code>{connectorUrl}</code> <Copyable text={connectorUrl} />
+            </>
+          ) : (
+            <code>https://&lt;your-domain&gt;/mcp</code>
+          )}
+          , no client ID or secret.
         </li>
         <li>Claude opens BudgetPro’s approval page: paste the API token above and approve.</li>
         <li>It then shows up in the Claude mobile app on the same account.</li>
       </ol>
       <p className="small muted">Regenerating the API token signs every connected app out.</p>
       <h3 className="small">Connected apps</h3>
-      {error && <p className="small error">{error}</p>}
       {apps && apps.length === 0 && <p className="small muted">None yet.</p>}
       {apps && apps.length > 0 && (
         <table className="small">
