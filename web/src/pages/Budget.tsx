@@ -40,7 +40,11 @@ export default function Budget() {
   const kidsTotal = (l: BudgetLine) => lines.filter((x) => x.parent_id === l.category_id).reduce((a, x) => a + lineTotal(x), 0);
   const total = (kind: string) => lines.filter((l) => l.kind === kind).reduce((a, l) => a + lineTotal(l), 0);
   const income = total('income');
-  const out = total('expense') + total('savings');
+  const savings = total('savings');
+  const out = total('expense') + savings;
+  // Each spending line counts once, by its own amount, in its part of the plan.
+  const bucket = (b: string) => lines.filter((l) => l.kind === 'expense' && l.bucket === b).reduce((a, l) => a + lineTotal(l), 0);
+  const share = (v: number) => (income > 0 ? `${((v / income) * 100).toFixed(1)}%` : '—');
 
   async function save() {
     if (!selected) return;
@@ -70,26 +74,54 @@ export default function Budget() {
         </div>
       )}
 
-      <div className="tiles">
-        <div className="tile">
-          <div className="label">Expected income</div>
-          <div className="value">{money(income, { whole: true })}</div>
-        </div>
-        <div className="tile">
-          <div className="label">Planned out</div>
-          <div className="value">{money(out, { whole: true })}</div>
-          <div className="sub">spending + savings</div>
-        </div>
-        <div className="tile">
-          <div className="label">Unallocated</div>
-          <div className="value" style={{ color: income - out < 0 ? 'var(--critical-text)' : 'var(--good-text)' }}>
-            {money(income - out, { whole: true, signed: true })}
-          </div>
-          <div className="sub">{income - out < 0 ? 'over-committed' : 'give every rand a job'}</div>
-        </div>
-      </div>
+      {lines.length > 0 && <div className="card">
+        <h2>Savings first</h2>
+        <table className="plan-summary">
+          <tbody>
+            <tr>
+              <td>Expected income</td>
+              <td className="num">{money(income, { whole: true })}</td>
+              <td />
+            </tr>
+            <tr>
+              <td>− Pay yourself first (savings &amp; investments)</td>
+              <td className="num">{money(savings, { whole: true })}</td>
+              <td className="small muted">{share(savings)} of income</td>
+            </tr>
+            <tr className="subtotal">
+              <td>= To live on</td>
+              <td className="num">{money(income - savings, { whole: true })}</td>
+              <td />
+            </tr>
+            <tr>
+              <td>− Fixed costs (once a month)</td>
+              <td className="num">{money(bucket('fixed'), { whole: true })}</td>
+              <td className="small muted">ticked Fixed in Setup → Categories</td>
+            </tr>
+            <tr>
+              <td>− Day-to-day</td>
+              <td className="num">{money(bucket('day_to_day'), { whole: true })}</td>
+              <td className="small muted">
+                {selected ? `about ${money((bucket('day_to_day') * 7) / selected.days, { whole: true })} a week` : ''}
+              </td>
+            </tr>
+            <tr>
+              <td>− Debt repayments</td>
+              <td className="num">{money(bucket('debt'), { whole: true })}</td>
+              <td className="small muted">{share(bucket('debt'))} of income</td>
+            </tr>
+            <tr className="subtotal">
+              <td>= {income - out < 0 ? 'Shortfall' : 'Surplus'}</td>
+              <td className="num" style={{ color: income - out < 0 ? 'var(--critical-text)' : 'var(--good-text)' }}>
+                {money(income - out, { whole: true, signed: true })}
+              </td>
+              <td className="small muted">{income - out < 0 ? 'the plan spends more than comes in' : 'give every rand a job'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>}
 
-      {(['income', 'expense', 'savings'] as const).map((kind) => {
+      {(['income', 'savings', 'expense'] as const).map((kind) => {
         const ls = lines.filter((l) => l.kind === kind);
         if (!ls.length) return null;
         return (

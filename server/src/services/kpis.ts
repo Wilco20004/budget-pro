@@ -3,7 +3,7 @@ import { TX_STATUS_SQL } from './categorize';
 import { planBudget } from './paymentPlans';
 import { debtOverview, paydownByCategory } from './debts';
 import { goalBudget } from './savings';
-import { parseIso, Period, recentPeriods, todayIso } from './periods';
+import { addDays, parseIso, Period, recentPeriods, todayIso } from './periods';
 
 export interface CategoryKpi {
   category_id: string | null;
@@ -38,6 +38,28 @@ export interface CategoryKpi {
   own_planned?: number;
   /** Part of planned that comes from savings goals' planned top-ups. */
   goals_planned: number;
+  /** Where its own money sits in the monthly plan: a fixed cost, a debt
+   *  repayment (the Debt repayments tree), or day-to-day spending. */
+  bucket: Bucket;
+}
+
+export type Bucket = 'fixed' | 'debt' | 'day_to_day';
+
+/** One payday-to-payday week of day-to-day spending. */
+export interface WeekKpi {
+  n: number;
+  start: string;
+  end: string;
+  days: number;
+  /** This week's share of the day-to-day budget (by its number of days). */
+  base: number;
+  /** base plus whatever earlier weeks left over (or minus what they overspent);
+   *  null for a week that hasn't started. */
+  allowance: number | null;
+  spent: number;
+  /** allowance − spent; null for a week that hasn't started. */
+  left: number | null;
+  state: 'past' | 'current' | 'future';
 }
 
 export interface GroupKpi {
@@ -94,6 +116,11 @@ export interface PeriodKpis {
     daily_allowance: number | null;
     /** Planned income − planned outflows. Negative means the budget itself is over-committed. */
     unallocated: number;
+    /** Planned debt repayments (cards, loans) ÷ planned income, %. */
+    debt_to_income: number | null;
+    /** Savings and investments ÷ income, %: as planned, and as actually put away. */
+    investment_to_income_planned: number | null;
+    investment_to_income: number | null;
   };
   recon: {
     total: number;
@@ -111,6 +138,37 @@ export interface PeriodKpis {
   /** Expense categories rolled up by display group, in group order;
    *  ungrouped last. */
   groups: GroupKpi[];
+  /** The monthly plan, savings first: income − savings = to live on;
+   *  − fixed − day-to-day − debt = surplus (negative = shortfall). */
+  plan: {
+    income: number;
+    savings: number;
+    live_on: number;
+    fixed: number;
+    day_to_day: number;
+    debt: number;
+    surplus: number;
+  };
+  /** The day-to-day budget spread over 7-day weeks from payday (a last
+   *  stub under 4 days joins the week before); spending outside this
+   *  week's allowance carries into the next. */
+  weekly: { budget: number; current: number | null; weeks: WeekKpi[] };
+}
+
+/** 7-day weeks from the period's first day; a stub under 4 days at the end
+ *  joins the last full week. */
+export function payWeeks(period: Period): { start: string; end: string; days: number }[] {
+  const weeks: { start: string; end: string; days: number }[] = [];
+  for (let start = period.start; start <= period.end; start = addDays(start, 7)) {
+    const end = addDays(start, 6) < period.end ? addDays(start, 6) : period.end;
+    const days = Math.round((parseIso(end).getTime() - parseIso(start).getTime()) / 86400000) + 1;
+    if (days < 4 && weeks.length) {
+      const last = weeks[weeks.length - 1];
+      last.end = end;
+      last.days += days;
+    } else weeks.push({ start, end, days });
+  }
+  return weeks;
 }
 
 function r2(n: number) {
@@ -176,6 +234,20 @@ export function periodKpis(period: Period): PeriodKpis {
     )
     .get(period.start, period.end) as { rest: number; out_rest: number; n: number };
 
+  // The Debt repayments tree and every tracked card/loan's own line.
+  const debtIds = new Set(
+    (
+      db
+        .prepare(
+          `SELECT id FROM categories
+           WHERE (name = 'Debt repayments' AND parent_id IS NULL)
+              OR parent_id IN (SELECT id FROM categories WHERE name = 'Debt repayments' AND parent_id IS NULL)
+              OR id IN (SELECT debt_category_id FROM accounts WHERE debt_category_id IS NOT NULL)`
+        )
+        .all() as { id: string }[]
+    ).map((r) => r.id)
+  );
+
   const categories: CategoryKpi[] = [];
   for (const c of cats) {
     if (c.kind === 'transfer') continue;
@@ -202,6 +274,7 @@ export function periodKpis(period: Period): PeriodKpis {
       group_name: c.kind === 'expense' ? c.group_name : null,
       personal: Boolean(c.personal),
       fixed,
+      bucket: debtIds.has(c.id) ? 'debt' : fixed ? 'fixed' : 'day_to_day',
       parent_id: c.parent_id ?? null,
       plans_planned: r2(fromPlans),
       goals_planned: r2(fromGoals),
@@ -236,11 +309,15 @@ export function periodKpis(period: Period): PeriodKpis {
       group_name: null,
       personal: false,
       fixed: false,
+      bucket: 'day_to_day',
       parent_id: null,
       plans_planned: 0,
       goals_planned: 0,
     });
   }
+
+  // Each category's own figures, before parents take in their subcategories.
+  const own = categories.map((c) => ({ id: c.category_id, kind: c.kind, bucket: c.bucket, planned: c.planned }));
 
   // Parents include their subcategories: Groceries = unsplit groceries + Meat + Starch + …
   const byId = new Map(categories.map((c) => [c.category_id, c]));
@@ -338,6 +415,48 @@ export function periodKpis(period: Period): PeriodKpis {
     // An empty "Other" is noise; an empty named group still shows (it's set up).
     .filter((g) => g.group_id !== null || g.category_ids.length > 0);
 
+  // The plan, savings first (each category counted once, by its own figures).
+  const planOf = (bucket: Bucket) => r2(own.filter((c) => c.kind === 'expense' && c.bucket === bucket).reduce((a, c) => a + c.planned, 0));
+  const plan = {
+    income: income_planned,
+    savings: savings_planned,
+    live_on: r2(income_planned - savings_planned),
+    fixed: planOf('fixed'),
+    day_to_day: planOf('day_to_day'),
+    debt: planOf('debt'),
+    surplus: 0,
+  };
+  plan.surplus = r2(plan.live_on - plan.fixed - plan.day_to_day - plan.debt);
+
+  // Day-to-day spending per week: everything that isn't fixed or debt,
+  // including what isn't categorised yet (most of that is day-to-day).
+  const dayToDay = new Set(own.filter((c) => c.kind === 'expense' && c.bucket === 'day_to_day' && c.id).map((c) => c.id));
+  const spendRows = db
+    .prepare(
+      `SELECT COALESCE(t.budget_date, t.date) AS d, s.category_id AS c, -s.amount AS v
+       FROM transaction_splits s JOIN transactions t ON t.id = s.transaction_id
+       WHERE COALESCE(t.budget_date, t.date) BETWEEN ? AND ? AND t.ignored = 0
+       UNION ALL
+       SELECT COALESCE(t.budget_date, t.date), NULL,
+              -(t.amount - COALESCE((SELECT SUM(s.amount) FROM transaction_splits s WHERE s.transaction_id = t.id), 0))
+       FROM transactions t
+       WHERE COALESCE(t.budget_date, t.date) BETWEEN ? AND ? AND t.ignored = 0 AND t.amount < 0
+         AND t.amount - COALESCE((SELECT SUM(s.amount) FROM transaction_splits s WHERE s.transaction_id = t.id), 0) < -0.009`
+    )
+    .all(period.start, period.end, period.start, period.end) as { d: string; c: string | null; v: number }[];
+  const weekBudget = plan.day_to_day;
+  let carried = 0; // cumulative base − spent of finished weeks
+  let current: number | null = null;
+  const weeks: WeekKpi[] = payWeeks(period).map((w, i) => {
+    const base = r2((weekBudget * w.days) / period.days);
+    const spent = r2(spendRows.filter((r) => r.d >= w.start && r.d <= w.end && (r.c === null || dayToDay.has(r.c))).reduce((a, r) => a + r.v, 0));
+    const state = w.end < today ? 'past' : w.start <= today ? 'current' : 'future';
+    if (state === 'current') current = i;
+    const allowance = state === 'future' ? null : r2(base + carried);
+    if (state !== 'future') carried = r2(carried + base - spent);
+    return { n: i + 1, ...w, base, allowance, spent, left: allowance === null ? null : r2(allowance - spent), state };
+  });
+
   return {
     period,
     elapsed_days: elapsedDays,
@@ -359,6 +478,9 @@ export function periodKpis(period: Period): PeriodKpis {
       expense_remaining,
       daily_allowance: daysLeft > 0 ? r2(expense_remaining / daysLeft) : null,
       unallocated: r2(income_planned - expense_planned - savings_planned),
+      debt_to_income: income_planned > 0 ? r2((plan.debt / income_planned) * 100) : null,
+      investment_to_income_planned: income_planned > 0 ? r2((savings_planned / income_planned) * 100) : null,
+      investment_to_income: income_actual > 0 ? r2((savings_actual / income_actual) * 100) : null,
     },
     recon: {
       total: Object.values(st).reduce((a, b) => a + b, 0),
@@ -372,6 +494,8 @@ export function periodKpis(period: Period): PeriodKpis {
     borrowed_unplanned,
     categories,
     groups,
+    plan,
+    weekly: { budget: weekBudget, current, weeks },
   };
 }
 
@@ -382,6 +506,8 @@ export interface TrendPoint {
   expenses_planned: number;
   savings: number;
   net: number;
+  debt_to_income: number | null;
+  investment_to_income: number | null;
   categories: { category_id: string | null; name: string; parent_id: string | null; planned: number; actual: number }[];
 }
 
@@ -395,6 +521,8 @@ export function trend(count: number, anchor?: Period): TrendPoint[] {
       expenses_planned: k.totals.expense_planned,
       savings: k.totals.savings_actual,
       net: k.totals.net,
+      debt_to_income: k.totals.debt_to_income,
+      investment_to_income: k.totals.investment_to_income,
       categories: k.categories
         .filter((c) => c.kind !== 'income' && c.kind !== 'loan')
         .map((c) => ({ category_id: c.category_id, name: c.name, parent_id: c.parent_id, planned: c.planned, actual: c.actual })),

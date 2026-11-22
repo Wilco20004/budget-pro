@@ -68,7 +68,7 @@ function buildServer(): McpServer {
     {
       title: 'Planned vs actual for a period',
       description:
-        'KPIs for one budget period: income/expense/savings planned vs actual, savings rate, daily allowance, reconciliation status, and per-category planned, actual, remaining, pace and status.',
+        'KPIs for one budget period: income/expense/savings planned vs actual, savings rate, daily allowance, reconciliation status, per-category planned, actual, remaining, pace, status and bucket (fixed | debt | day_to_day), the savings-first plan (income − savings = to live on; − fixed − day-to-day − debt = surplus), debt-to-income and investment-to-income ratios (%), and the weekly plan: the day-to-day budget over 7-day weeks from payday, with each week’s allowance (unspent or overspent money carries into the next week), spending and what’s left.',
       inputSchema: { period: periodArg },
       annotations: { readOnlyHint: true },
     },

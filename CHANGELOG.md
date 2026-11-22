@@ -1,5 +1,19 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.30.0 — 2026-11-21
+
+- **Weekly spending plan.** The dashboard's *This week* card spreads the
+  day-to-day budget (everything not fixed and not a debt repayment) over
+  7-day weeks from payday. It shows what's left this week, with unspent
+  money carried into the next week and overspending taken off it, and lists
+  every week with what to transfer to your spending account and when. A new
+  sensor, `sensor.budgetpro_week_left`, has this week's figure.
+- **Savings first.** The Plan page now opens with income − savings &
+  investments = to live on; − fixed − day-to-day − debt = surplus or
+  shortfall, updating as you type. Savings is listed right after income.
+- **Investment to income and debt to income** on the dashboard, with the
+  last 6 periods on hover.
+
 ## 1.29.1 — 2026-10-12
 
 - **Connector behind a path.** Settings → *Claude app & mobile* has a

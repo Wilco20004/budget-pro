@@ -22,7 +22,9 @@ budgetsRouter.get(
     // Own figures for a parent with subcategories: its row plans what isn't split further.
     const own = (c: { actual: number; own_actual?: number }) => c.own_actual ?? c.actual;
     const prevActual = new Map(periodKpis(prev).categories.map((c) => [c.category_id, own(c)]));
-    const actual = new Map(periodKpis(period).categories.map((c) => [c.category_id, own(c)]));
+    const k = periodKpis(period);
+    const actual = new Map(k.categories.map((c) => [c.category_id, own(c)]));
+    const bucket = new Map(k.categories.map((c) => [c.category_id, c.bucket]));
     const plans = planBudget(period).byCategory;
     const goals = goalBudget();
     const rows = db
@@ -49,6 +51,8 @@ budgetsRouter.get(
         goals: r.kind === 'income' ? 0 : goals.get(r.category_id) ?? 0,
         previous_actual: prevActual.get(r.category_id) ?? 0,
         actual: actual.get(r.category_id) ?? 0,
+        // Fixed, debt or day-to-day, for the savings-first summary.
+        bucket: r.kind === 'expense' ? bucket.get(r.category_id) ?? 'day_to_day' : null,
         // A tracked card/loan's own line: what's owed, for the Plan page.
         debt: debtByCategory.has(r.category_id)
           ? { account_id: debtByCategory.get(r.category_id)!.account_id, owed: debtByCategory.get(r.category_id)!.owed }

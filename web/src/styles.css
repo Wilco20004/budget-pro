@@ -1017,3 +1017,17 @@ i.swatch {
     grid-template-columns: 1fr;
   }
 }
+
+/* Plan page: the savings-first summary, read top to bottom */
+.plan-summary {
+  width: auto;
+  min-width: min(100%, 34rem);
+}
+.plan-summary td {
+  border: 0;
+  padding: 0.25rem 0.75rem 0.25rem 0;
+}
+.plan-summary tr.subtotal td {
+  border-top: 1px solid var(--line);
+  font-weight: 600;
+}

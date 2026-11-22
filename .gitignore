@@ -14,3 +14,6 @@ data/inbox/
 data/tesseract-cache/
 samples/
 data/samples/
+
+# Paid course material: reference only, never committed
+material/

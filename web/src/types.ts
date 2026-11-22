@@ -145,6 +145,24 @@ export interface CategoryKpi {
   plans_planned: number;
   /** Part of planned from savings goals' planned top-ups. */
   goals_planned: number;
+  /** Where its own money sits in the plan. */
+  bucket: Bucket;
+}
+
+export type Bucket = 'fixed' | 'debt' | 'day_to_day';
+
+export interface WeekKpi {
+  n: number;
+  start: string;
+  end: string;
+  days: number;
+  /** This week's share of the day-to-day budget. */
+  base: number;
+  /** base plus what earlier weeks left over (minus what they overspent); null before the week starts. */
+  allowance: number | null;
+  spent: number;
+  left: number | null;
+  state: 'past' | 'current' | 'future';
 }
 
 export interface PeriodKpis {
@@ -168,6 +186,9 @@ export interface PeriodKpis {
     expense_remaining: number;
     daily_allowance: number | null;
     unallocated: number;
+    debt_to_income: number | null;
+    investment_to_income_planned: number | null;
+    investment_to_income: number | null;
   };
   recon: {
     total: number;
@@ -181,6 +202,8 @@ export interface PeriodKpis {
   borrowed_unplanned: { transaction_id: string; date: string; description: string; amount: number }[];
   categories: CategoryKpi[];
   groups: GroupKpi[];
+  plan: { income: number; savings: number; live_on: number; fixed: number; day_to_day: number; debt: number; surplus: number };
+  weekly: { budget: number; current: number | null; weeks: WeekKpi[] };
 }
 
 export interface TrendPoint {
@@ -190,6 +213,8 @@ export interface TrendPoint {
   expenses_planned: number;
   savings: number;
   net: number;
+  debt_to_income: number | null;
+  investment_to_income: number | null;
 }
 
 export interface BudgetLine {
@@ -211,6 +236,8 @@ export interface BudgetLine {
   previous_actual: number;
   /** This period so far. */
   actual: number;
+  /** Spending lines only: fixed, debt or day-to-day. */
+  bucket: Bucket | null;
   /** Set on a tracked card/loan's own Debt repayments line. */
   debt: { account_id: string; owed: number | null } | null;
   group_id: string | null;

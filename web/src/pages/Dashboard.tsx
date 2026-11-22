@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import TrendChart from '../components/TrendChart';
+import WeeklyPlan from '../components/WeeklyPlan';
 import { money, shortDate } from '../format';
 import { CategoryKpi, DebtOverview, GroupKpi, PeriodKpis, SavingsOverview, TrendPoint } from '../types';
 
@@ -50,6 +51,7 @@ function GroupBlock({ g, members, all, fraction }: { g: GroupKpi; members: Categ
     parent_id: null,
     personal: false,
     fixed: members.length > 0 && members.every((c) => c.fixed),
+    bucket: 'day_to_day',
     plans_planned: members.reduce((a, c) => a + c.plans_planned, 0),
     goals_planned: 0,
   };
@@ -144,6 +146,10 @@ export default function Dashboard() {
   const savings = k?.categories.filter((c) => c.kind === 'savings' && !c.parent_id && c.status !== 'no_activity') ?? [];
   const personal = k?.categories.filter((c) => c.personal && (c.planned || c.actual)) ?? [];
   const toDo = k ? k.recon.uncategorized + k.recon.needs_slip : 0;
+  const pct = (v: number | null) => (v === null ? '—' : `${v.toFixed(1)}%`);
+  // Earlier periods' values for a ratio, oldest first, for its tooltip.
+  const history = (f: (p: TrendPoint) => number | null) =>
+    trend.length > 1 ? `\nLast ${trend.length} periods: ${trend.map((p) => pct(f(p))).join(' · ')}` : '';
 
   return (
     <>
@@ -197,6 +203,30 @@ export default function Dashboard() {
                 {t.savings_rate !== null ? `${t.savings_rate.toFixed(0)}% of income unspent` : 'no income yet'}
               </div>
             </div>
+            {t.investment_to_income_planned !== null && (
+              <div
+                className="tile"
+                title={`Savings and investments ÷ income. Planned ${pct(t.investment_to_income_planned)}.${history((p) => p.investment_to_income)}`}
+              >
+                <div className="label">Investment to income</div>
+                <div className="value">{pct(t.investment_to_income)}</div>
+                <div className="sub">
+                  put away · planned {pct(t.investment_to_income_planned)}
+                </div>
+              </div>
+            )}
+            {t.debt_to_income !== null && t.debt_to_income > 0 && (
+              <Link
+                to="/debt"
+                className="tile"
+                style={{ color: 'inherit', textDecoration: 'none' }}
+                title={`Planned card and loan repayments ÷ planned income (the bond counts as a fixed cost).${history((p) => p.debt_to_income)}`}
+              >
+                <div className="label">Debt to income</div>
+                <div className="value">{pct(t.debt_to_income)}</div>
+                <div className="sub">{money(k.plan.debt, { whole: true })} repayments planned</div>
+              </Link>
+            )}
             <div className="tile">
               <div className="label">Net</div>
               <div className="value" style={{ color: t.net < 0 ? 'var(--critical-text)' : 'var(--good-text)' }}>
@@ -233,6 +263,8 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          <WeeklyPlan k={k} />
 
           {personal.length > 0 && (
             <div className="card">

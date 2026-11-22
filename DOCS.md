@@ -250,6 +250,11 @@ For the selected period:
 - **Spent / Left to spend / daily allowance** (left ÷ days to payday)
 - **Income** vs expected, **Saved**, **Net** (income − spending − savings),
   savings rate
+- **Investment to income** (savings and investments ÷ income, put away vs
+  planned) and **Debt to income** (planned card and loan repayments ÷
+  planned income; the bond counts as a fixed cost). Hover either for the
+  last 6 periods.
+- **This week**: the weekly spending plan (below)
 - **Reconciled** count and **slip coverage** (% of slip-required
   transactions with a slip)
 - **Planned vs actual** per category: bar = spent, solid tick = planned,
@@ -260,6 +265,28 @@ For the selected period:
   doesn't push its group ahead of pace. Categories in the *Fixed* group start
   out ticked.
 - **Last 6 periods**: income vs spending, with the planned spend marked.
+
+### Weekly spending plan
+
+Day-to-day money is everything you spend that isn't ticked **Fixed** and
+isn't a debt repayment (groceries, kids, fuel, eating out, spending money,
+…), plus anything not categorised yet. Its budget is spread over 7-day
+weeks counted from payday; a stub of under 4 days at the end of the period
+joins the last week, so a 30-day period runs 7 / 7 / 7 / 9 days. Each week
+gets its share by days.
+
+What a week doesn't spend carries into the next, and an overspend comes off
+it, so the current week shows what's really left. The table lists every
+week with the amount to transfer to your spending account on its first day
+(nothing when earlier weeks already overspent), its allowance, spending and
+what's left. A week that hasn't started shows its planned share.
+
+### Savings first (Plan page)
+
+The Plan page opens with the month laid out savings first: expected income
+− savings & investments = **to live on**; − fixed costs − day-to-day − debt
+repayments = **surplus** (or shortfall). It updates as you type, and shows
+savings and debt as a share of income and day-to-day as a weekly amount.
 
 **Groups** (Setup → Groups) bundle spending categories, e.g. *Fixed* (bond,
 rates, insurance), *Living* (groceries, fuel, kids) and *Lifestyle* (eating
@@ -465,6 +492,7 @@ Updated on every change and every 5 minutes (turn off in Settings):
 | `sensor.budgetpro_income` | income this period |
 | `sensor.budgetpro_daily_allowance` | remaining ÷ days left |
 | `sensor.budgetpro_days_left` | days until payday |
+| `sensor.budgetpro_week_left` | day-to-day money left this week (attr: week, week_start, week_end, allowance, spent) |
 | `sensor.budgetpro_to_reconcile` | uncategorised + needs slip |
 | `sensor.budgetpro_<category>_remaining` | per category (attr: planned, actual, pct_used, status) |
 | `sensor.budgetpro_group_<group>_remaining` | per category group, e.g. Living (same attributes) |

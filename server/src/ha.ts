@@ -73,6 +73,21 @@ export async function publishSensors(): Promise<void> {
         friendly_name: 'Daily spending allowance',
         icon: 'mdi:calendar-today',
       });
+      const week = k.weekly.current !== null ? k.weekly.weeks[k.weekly.current] : null;
+      if (week) {
+        await setState('sensor.budgetpro_week_left', week.left ?? 0, {
+          ...money,
+          ...base,
+          state_class: 'measurement',
+          friendly_name: 'Day-to-day money left this week',
+          icon: 'mdi:calendar-week',
+          week: week.n,
+          week_start: week.start,
+          week_end: week.end,
+          allowance: week.allowance,
+          spent: week.spent,
+        });
+      }
       await setState('sensor.budgetpro_days_left', k.days_left, {
         ...base,
         unit_of_measurement: 'd',
