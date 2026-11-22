@@ -20,6 +20,7 @@ const TABLES = [
   'category_groups',
   'categories',
   'budget_lines',
+  'week_plans',
   'payment_plans',
   'savings_goals',
   'merchants',

@@ -55,6 +55,40 @@ function embedded(): boolean {
   }
 }
 
+// Phones: a tab bar along the bottom for the everyday pages; More opens the menu.
+const TABS: { to: string; label: string; end?: boolean; badge?: boolean; icon: ReactNode }[] = [
+  {
+    to: '/',
+    label: 'Home',
+    end: true,
+    icon: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" />,
+  },
+  {
+    to: '/transactions',
+    label: 'Transactions',
+    badge: true,
+    icon: <path d="M7 4v14m0 0-3-3m3 3 3-3M17 20V6m0 0-3 3m3-3 3 3" />,
+  },
+  {
+    to: '/receipts',
+    label: 'Slips',
+    icon: <path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3" />,
+  },
+  {
+    to: '/budget',
+    label: 'Plan',
+    icon: <path d="M4 20V10m6 10V4m6 16v-7m4 7H2" />,
+  },
+];
+
+function Icon({ children }: { children: ReactNode }) {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {children}
+    </svg>
+  );
+}
+
 function Dropdown({ name, items, path, badge }: { name: string; items: Item[]; path: string; badge: ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -102,8 +136,37 @@ export default function NavBar({ badge }: { badge: ReactNode }) {
     return () => document.removeEventListener('keydown', esc);
   }, [drawer]);
   const current = ALL.find((i) => isActive(i, pathname));
+  const onTab = TABS.some((t) => isActive(t, pathname));
+  // The on-screen keyboard pushes a fixed bar up over the form: hide it while typing.
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const field = (t: Element | null) => {
+      if (!(t instanceof HTMLElement)) return false;
+      return !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'file'].includes((t as HTMLInputElement).type)));
+    };
+    // A field removed while focused sends no focusout: decide from what has focus
+    // now, and look again shortly after (focus has moved on by then).
+    const check = () => setTyping(field(document.activeElement));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const on = () => {
+      check();
+      clearTimeout(timer);
+      timer = setTimeout(check, 400);
+    };
+    document.addEventListener('focusin', on);
+    document.addEventListener('focusout', on);
+    const poll = setInterval(check, 1000);
+    return () => {
+      document.removeEventListener('focusin', on);
+      document.removeEventListener('focusout', on);
+      clearTimeout(timer);
+      clearInterval(poll);
+    };
+  }, []);
+  useEffect(() => setTyping(false), [pathname]);
 
   return (
+    <>
     <header className={`topbar${inHa ? ' embedded' : ''}`}>
       {!inHa && (
         <NavLink to="/" className="brand">
@@ -124,20 +187,9 @@ export default function NavBar({ badge }: { badge: ReactNode }) {
         ))}
       </nav>
 
-      {/* Phones: where you are, and a menu that slides in from the right. */}
+      {/* Phones: where you are; the tab bar at the bottom does the moving around. */}
       <div className="nav-narrow">
-        <span className="nav-current">
-          {current?.label ?? 'BudgetPro'}
-          {current?.badge && badge}
-        </span>
-        {badge && current?.to !== '/transactions' && (
-          <NavLink to="/transactions" className="nav-todo" aria-label="Transactions to sort">
-            {badge}
-          </NavLink>
-        )}
-        <button className="nav-burger" aria-label="Menu" aria-expanded={drawer} onClick={() => setDrawer(true)}>
-          ☰
-        </button>
+        <span className="nav-current">{current?.label ?? 'BudgetPro'}</span>
       </div>
 
       {drawer && (
@@ -164,5 +216,26 @@ export default function NavBar({ badge }: { badge: ReactNode }) {
         </div>
       )}
     </header>
+
+    <nav className={`tabbar${typing ? ' typing' : ''}`} aria-label="Main">
+      {TABS.map((t) => (
+        <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive: a }) => (a || isActive(t, pathname) ? 'active' : '')}>
+          <span className="tab-icon">
+            <Icon>{t.icon}</Icon>
+            {t.badge && badge}
+          </span>
+          <span className="tab-label">{t.label}</span>
+        </NavLink>
+      ))}
+      <button className={!onTab ? 'active' : ''} aria-label="More pages" aria-expanded={drawer} onClick={() => setDrawer(true)}>
+        <span className="tab-icon">
+          <Icon>
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </Icon>
+        </span>
+        <span className="tab-label">{!onTab && current ? current.label : 'More'}</span>
+      </button>
+    </nav>
+    </>
   );
 }

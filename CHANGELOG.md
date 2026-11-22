@@ -1,5 +1,20 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.31.0 — 2026-11-22
+
+- **Edit weeks** on the weekly plan: set your own amount for any week (a
+  holiday week, a week away). Blank weeks share what's left of the
+  day-to-day budget by days, and the card warns when the set weeks come to
+  more than the budget. Hand-set weeks are kept per period and included in
+  backups.
+- Phones get a tab bar along the bottom: Home, Transactions (with the
+  to-sort count), Slips, Plan and More (every other page). It steps aside
+  while you type so the keyboard doesn't push it over the form.
+- Phone layout: the weekly table fits the screen (dates under the week
+  number, the transfer amount under the dates); Savings first puts each note
+  under its line; the Plan and payment plan tables fit without scrolling
+  sideways.
+
 ## 1.30.0 — 2026-11-21
 
 - **Weekly spending plan.** The dashboard's *This week* card spreads the

@@ -106,6 +106,28 @@ budgetsRouter.post(
   })
 );
 
+/** Body: { weeks: [{ n, amount }] } — the period's hand-set week amounts,
+ *  replacing any set before. amount null (or a week left out) = automatic. */
+budgetsRouter.put(
+  '/:period/weeks',
+  h((req, res) => {
+    const period = resolvePeriod(req.params.period);
+    const weeks = Array.isArray(req.body?.weeks) ? req.body.weeks : [];
+    const insert = db.prepare(`INSERT INTO week_plans (period_start, week_n, amount) VALUES (?, ?, ?)
+       ON CONFLICT(period_start, week_n) DO UPDATE SET amount = excluded.amount`);
+    db.transaction(() => {
+      db.prepare('DELETE FROM week_plans WHERE period_start = ?').run(period.start);
+      for (const w of weeks) {
+        const n = Math.trunc(num(w?.n));
+        if (n < 1 || w?.amount === null || w?.amount === undefined || w?.amount === '') continue;
+        insert.run(period.start, n, Math.max(0, round2(num(w.amount))));
+      }
+    })();
+    publishSensors().catch(() => undefined);
+    res.json({ ok: true });
+  })
+);
+
 export const kpisRouter = Router();
 
 kpisRouter.get(

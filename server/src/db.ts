@@ -661,3 +661,14 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 `);
+
+// 1.31.0: a week's day-to-day amount set by hand (a holiday week, a week
+// away). Weeks without a row share what's left of the day-to-day budget.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS week_plans (
+    period_start TEXT NOT NULL,
+    week_n INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    PRIMARY KEY (period_start, week_n)
+  );
+`);

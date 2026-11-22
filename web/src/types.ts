@@ -156,8 +156,9 @@ export interface WeekKpi {
   start: string;
   end: string;
   days: number;
-  /** This week's share of the day-to-day budget. */
+  /** This week's plan: set by hand (custom) or its share by days of what the hand-set weeks leave. */
   base: number;
+  custom: boolean;
   /** base plus what earlier weeks left over (minus what they overspent); null before the week starts. */
   allowance: number | null;
   spent: number;
@@ -203,7 +204,7 @@ export interface PeriodKpis {
   categories: CategoryKpi[];
   groups: GroupKpi[];
   plan: { income: number; savings: number; live_on: number; fixed: number; day_to_day: number; debt: number; surplus: number };
-  weekly: { budget: number; current: number | null; weeks: WeekKpi[] };
+  weekly: { budget: number; planned: number; current: number | null; weeks: WeekKpi[] };
 }
 
 export interface TrendPoint {

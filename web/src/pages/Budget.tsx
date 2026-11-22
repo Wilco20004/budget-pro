@@ -128,7 +128,7 @@ export default function Budget() {
           <div className="card" key={kind}>
             <h2>{KIND_TITLE[kind]}</h2>
             <div className="table-wrap">
-              <table>
+              <table className="plan-table">
                 <thead>
                   <tr>
                     <th>Category</th>
@@ -214,6 +214,7 @@ export default function Budget() {
                             setValues({ ...values, [l.category_id]: e.target.value });
                             setDirty(true);
                           }}
+                          className="plan-input"
                           style={{ width: '8rem', textAlign: 'right' }}
                         />
                       </td>

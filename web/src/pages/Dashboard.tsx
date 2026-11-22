@@ -264,7 +264,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <WeeklyPlan k={k} />
+          <WeeklyPlan key={k.period.start} k={k} onChange={() => selected && api.kpis(selected.start).then(setK).catch((e) => setError(e.message))} />
 
           {personal.length > 0 && (
             <div className="card">

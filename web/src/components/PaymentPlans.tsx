@@ -236,7 +236,7 @@ export default function PaymentPlans({
 
       {shown.length > 0 && (
         <div className="table-wrap">
-          <table>
+          <table className="plan-table">
             <thead>
               <tr>
                 <th>Plan</th>

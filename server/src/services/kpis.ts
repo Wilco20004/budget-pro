@@ -51,8 +51,11 @@ export interface WeekKpi {
   start: string;
   end: string;
   days: number;
-  /** This week's share of the day-to-day budget (by its number of days). */
+  /** What this week plans to spend: the amount set for it by hand, or its
+   *  share (by days) of what the hand-set weeks leave of the budget. */
   base: number;
+  /** true when base was set by hand for this week. */
+  custom: boolean;
   /** base plus whatever earlier weeks left over (or minus what they overspent);
    *  null for a week that hasn't started. */
   allowance: number | null;
@@ -152,7 +155,9 @@ export interface PeriodKpis {
   /** The day-to-day budget spread over 7-day weeks from payday (a last
    *  stub under 4 days joins the week before); spending outside this
    *  week's allowance carries into the next. */
-  weekly: { budget: number; current: number | null; weeks: WeekKpi[] };
+  /** budget = the day-to-day plan; planned = what the weeks add up to (differs
+   *  when hand-set weeks add up to more than the budget, or every week is set). */
+  weekly: { budget: number; planned: number; current: number | null; weeks: WeekKpi[] };
 }
 
 /** 7-day weeks from the period's first day; a stub under 4 days at the end
@@ -445,16 +450,27 @@ export function periodKpis(period: Period): PeriodKpis {
     )
     .all(period.start, period.end, period.start, period.end) as { d: string; c: string | null; v: number }[];
   const weekBudget = plan.day_to_day;
+  const blocks = payWeeks(period);
+  const set = new Map(
+    (db.prepare('SELECT week_n, amount FROM week_plans WHERE period_start = ?').all(period.start) as { week_n: number; amount: number }[])
+      .filter((r) => r.week_n >= 1 && r.week_n <= blocks.length)
+      .map((r) => [r.week_n, r.amount])
+  );
+  // Weeks not set by hand share what the set ones leave, by days.
+  const setTotal = [...set.values()].reduce((a, v) => a + v, 0);
+  const freeDays = blocks.reduce((a, w, i) => a + (set.has(i + 1) ? 0 : w.days), 0);
+  const rest = Math.max(0, weekBudget - setTotal);
   let carried = 0; // cumulative base − spent of finished weeks
   let current: number | null = null;
-  const weeks: WeekKpi[] = payWeeks(period).map((w, i) => {
-    const base = r2((weekBudget * w.days) / period.days);
+  const weeks: WeekKpi[] = blocks.map((w, i) => {
+    const custom = set.has(i + 1);
+    const base = r2(custom ? set.get(i + 1)! : freeDays ? (rest * w.days) / freeDays : 0);
     const spent = r2(spendRows.filter((r) => r.d >= w.start && r.d <= w.end && (r.c === null || dayToDay.has(r.c))).reduce((a, r) => a + r.v, 0));
     const state = w.end < today ? 'past' : w.start <= today ? 'current' : 'future';
     if (state === 'current') current = i;
     const allowance = state === 'future' ? null : r2(base + carried);
     if (state !== 'future') carried = r2(carried + base - spent);
-    return { n: i + 1, ...w, base, allowance, spent, left: allowance === null ? null : r2(allowance - spent), state };
+    return { n: i + 1, ...w, base, custom, allowance, spent, left: allowance === null ? null : r2(allowance - spent), state };
   });
 
   return {
@@ -495,7 +511,7 @@ export function periodKpis(period: Period): PeriodKpis {
     categories,
     groups,
     plan,
-    weekly: { budget: weekBudget, current, weeks },
+    weekly: { budget: weekBudget, planned: r2(weeks.reduce((a, w) => a + w.base, 0)), current, weeks },
   };
 }
 

@@ -279,7 +279,14 @@ What a week doesn't spend carries into the next, and an overspend comes off
 it, so the current week shows what's really left. The table lists every
 week with the amount to transfer to your spending account on its first day
 (nothing when earlier weeks already overspent), its allowance, spending and
-what's left. A week that hasn't started shows its planned share.
+what's left. A week that hasn't started shows its plan.
+
+Weeks don't have to be equal. **Edit weeks** on the card sets an amount for
+any week, for example more for a holiday week or less for a week away. The
+weeks you leave blank share whatever is left of the day-to-day budget, by
+days, so the period still adds up. If the weeks you set come to more than
+the budget, the card says by how much. To plan an upcoming period, pick it
+with the period arrows first. **All automatic** clears the hand-set weeks.
 
 ### Savings first (Plan page)
 
