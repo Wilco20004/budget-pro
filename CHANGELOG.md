@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.32.0 — 2026-11-22
+
+- **Day-to-day by week** on the Plan page (tablet and computer): plan each
+  day-to-day category per week, with what it spent each week underneath.
+  A category's blank weeks share what's left of its plan by days;
+  subcategories without their own plan fold into their parent. The
+  dashboard's weekly card shows the totals and links here (**Plan weeks**);
+  editing whole-week amounts on the card is replaced by this.
+- Whole-week amounts set in 1.31.0 are carried over: each set week is split
+  over the categories in proportion to their plans, so its total doesn't
+  change.
+
 ## 1.31.0 — 2026-11-22
 
 - **Edit weeks** on the weekly plan: set your own amount for any week (a

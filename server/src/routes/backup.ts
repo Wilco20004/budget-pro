@@ -5,6 +5,7 @@ import multer from 'multer';
 import { db, UPLOADS_DIR } from '../db';
 import { publishSensors } from '../ha';
 import { h } from '../util';
+import { migrateAllWeekTotals } from '../services/kpis';
 
 // One-file backup of everything — for moving BudgetPro between machines
 // (e.g. a trial run on a PC to the Home Assistant add-on). It's JSON rather
@@ -21,6 +22,7 @@ const TABLES = [
   'categories',
   'budget_lines',
   'week_plans',
+  'week_category_plans',
   'payment_plans',
   'savings_goals',
   'merchants',
@@ -130,6 +132,7 @@ backupRouter.post(
       fs.writeFileSync(path.join(UPLOADS_DIR, rel), Buffer.from(b64, 'base64'));
       fileCount++;
     }
+    migrateAllWeekTotals(); // a 1.31.0 backup brings whole-week amounts
     publishSensors().catch(() => undefined);
     res.json({ ok: true, counts, files: fileCount });
   })

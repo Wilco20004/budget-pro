@@ -3,7 +3,7 @@ import { TX_STATUS_SQL } from './categorize';
 import { planBudget } from './paymentPlans';
 import { debtOverview, paydownByCategory } from './debts';
 import { goalBudget } from './savings';
-import { addDays, parseIso, Period, recentPeriods, todayIso } from './periods';
+import { addDays, parseIso, Period, periodFor, recentPeriods, todayIso } from './periods';
 
 export interface CategoryKpi {
   category_id: string | null;
@@ -63,6 +63,47 @@ export interface WeekKpi {
   /** allowance − spent; null for a week that hasn't started. */
   left: number | null;
   state: 'past' | 'current' | 'future';
+}
+
+/** One day-to-day category across the weeks of a period. */
+export interface WeekCategoryKpi {
+  /** null = spending not categorised yet (no plan, not editable). */
+  category_id: string | null;
+  name: string;
+  icon: string | null;
+  parent_id: string | null;
+  /** The category's own plan for the period (as on the Plan page). */
+  planned: number;
+  /** plan: set by hand (custom) or its share by days of what the set weeks leave. */
+  weeks: { plan: number; custom: boolean; spent: number }[];
+}
+
+/** 1.31.0 stored whole-week amounts; 1.32.0 plans each category per week.
+ *  A set week becomes that week's cells, split over the categories in
+ *  proportion to their plans, so every week's total stays the same. */
+function migrateWeekTotals(
+  periodStart: string,
+  nWeeks: number,
+  ownPlanned: Map<string, number>
+) {
+  const rows = db.prepare('SELECT week_n, amount FROM week_plans WHERE period_start = ?').all(periodStart) as { week_n: number; amount: number }[];
+  if (!rows.length) return;
+  const total = [...ownPlanned.values()].reduce((a, v) => a + Math.max(0, v), 0);
+  // Nothing planned to split it over yet: keep the amounts for a later try.
+  if (total <= 0) return;
+  const insert = db.prepare(
+    `INSERT INTO week_category_plans (period_start, week_n, category_id, amount) VALUES (?, ?, ?, ?)
+     ON CONFLICT(period_start, week_n, category_id) DO NOTHING`
+  );
+  db.transaction(() => {
+    for (const r of rows) {
+      if (r.week_n < 1 || r.week_n > nWeeks) continue;
+      for (const [id, planned] of ownPlanned) {
+        if (planned > 0) insert.run(periodStart, r.week_n, id, r2((r.amount * planned) / total));
+      }
+    }
+    db.prepare('DELETE FROM week_plans WHERE period_start = ?').run(periodStart);
+  })();
 }
 
 export interface GroupKpi {
@@ -157,7 +198,7 @@ export interface PeriodKpis {
    *  week's allowance carries into the next. */
   /** budget = the day-to-day plan; planned = what the weeks add up to (differs
    *  when hand-set weeks add up to more than the budget, or every week is set). */
-  weekly: { budget: number; planned: number; current: number | null; weeks: WeekKpi[] };
+  weekly: { budget: number; planned: number; current: number | null; weeks: WeekKpi[]; categories: WeekCategoryKpi[] };
 }
 
 /** 7-day weeks from the period's first day; a stub under 4 days at the end
@@ -180,7 +221,20 @@ function r2(n: number) {
   return Math.round(n * 100) / 100;
 }
 
-export function periodKpis(period: Period): PeriodKpis {
+/** Converts every period's 1.31.0 whole-week amounts (week_plans) into
+ *  per-category cells. Run at startup and after a restore, never from a read. */
+export function migrateAllWeekTotals() {
+  const starts = db.prepare('SELECT DISTINCT period_start FROM week_plans').all() as { period_start: string }[];
+  for (const { period_start } of starts) {
+    try {
+      periodKpis(periodFor(period_start), { migrate: true });
+    } catch (e) {
+      console.error('[budgetpro] week plan migration failed for', period_start, e);
+    }
+  }
+}
+
+export function periodKpis(period: Period, opts: { migrate?: boolean } = {}): PeriodKpis {
   const today = todayIso();
   const elapsedDays =
     today < period.start
@@ -451,21 +505,74 @@ export function periodKpis(period: Period): PeriodKpis {
     .all(period.start, period.end, period.start, period.end) as { d: string; c: string | null; v: number }[];
   const weekBudget = plan.day_to_day;
   const blocks = payWeeks(period);
-  const set = new Map(
-    (db.prepare('SELECT week_n, amount FROM week_plans WHERE period_start = ?').all(period.start) as { week_n: number; amount: number }[])
-      .filter((r) => r.week_n >= 1 && r.week_n <= blocks.length)
-      .map((r) => [r.week_n, r.amount])
+  const nWeeks = blocks.length;
+  const ownPlanned = new Map(own.filter((c) => c.id && dayToDay.has(c.id)).map((c) => [c.id as string, c.planned]));
+  if (opts.migrate) migrateWeekTotals(period.start, nWeeks, ownPlanned);
+
+  // Amounts set by hand per category and week; a category's other weeks share
+  // what's left of its plan for the period, by days.
+  const cells = new Map<string, Map<number, number>>();
+  for (const r of db.prepare('SELECT category_id, week_n, amount FROM week_category_plans WHERE period_start = ?').all(period.start) as {
+    category_id: string;
+    week_n: number;
+    amount: number;
+  }[]) {
+    if (r.week_n < 1 || r.week_n > nWeeks || !dayToDay.has(r.category_id)) continue;
+    if (!cells.has(r.category_id)) cells.set(r.category_id, new Map());
+    cells.get(r.category_id)!.set(r.week_n, r.amount);
+  }
+  const weekOf = (d: string) => blocks.findIndex((w) => d >= w.start && d <= w.end);
+  const spentBy = new Map<string | null, number[]>();
+  for (const r of spendRows) {
+    if (r.c !== null && !dayToDay.has(r.c)) continue;
+    const i = weekOf(r.d);
+    if (i < 0) continue;
+    if (!spentBy.has(r.c)) spentBy.set(r.c, blocks.map(() => 0));
+    spentBy.get(r.c)![i] += r.v;
+  }
+  const catIds = [...new Set([...ownPlanned.keys(), ...cells.keys(), ...[...spentBy.keys()].filter((k): k is string => k !== null)])].filter(
+    (id) => (ownPlanned.get(id) ?? 0) > 0 || cells.has(id) || spentBy.has(id)
   );
-  // Weeks not set by hand share what the set ones leave, by days.
-  const setTotal = [...set.values()].reduce((a, v) => a + v, 0);
-  const freeDays = blocks.reduce((a, w, i) => a + (set.has(i + 1) ? 0 : w.days), 0);
-  const rest = Math.max(0, weekBudget - setTotal);
+  const byIdAll = new Map(categories.map((c) => [c.category_id, c]));
+  const weekCats: WeekCategoryKpi[] = catIds.map((id) => {
+    const planned = ownPlanned.get(id) ?? 0;
+    const set = cells.get(id) ?? new Map<number, number>();
+    const setTotal = [...set.values()].reduce((a, v) => a + v, 0);
+    const freeDays = blocks.reduce((a, w, i) => a + (set.has(i + 1) ? 0 : w.days), 0);
+    const rest = Math.max(0, planned - setTotal);
+    const spent = spentBy.get(id) ?? blocks.map(() => 0);
+    const c = byIdAll.get(id);
+    return {
+      category_id: id,
+      name: c?.name ?? '?',
+      icon: c?.icon ?? null,
+      parent_id: c?.parent_id ?? null,
+      planned,
+      weeks: blocks.map((w, i) => ({
+        plan: r2(set.has(i + 1) ? set.get(i + 1)! : freeDays ? (rest * w.days) / freeDays : 0),
+        custom: set.has(i + 1),
+        spent: r2(spent[i]),
+      })),
+    };
+  });
+  // Spending not given a category yet counts against the week, with no plan of its own.
+  if (spentBy.has(null)) {
+    weekCats.push({
+      category_id: null,
+      name: 'Uncategorised',
+      icon: '❓',
+      parent_id: null,
+      planned: 0,
+      weeks: spentBy.get(null)!.map((v) => ({ plan: 0, custom: false, spent: r2(v) })),
+    });
+  }
+
   let carried = 0; // cumulative base − spent of finished weeks
   let current: number | null = null;
   const weeks: WeekKpi[] = blocks.map((w, i) => {
-    const custom = set.has(i + 1);
-    const base = r2(custom ? set.get(i + 1)! : freeDays ? (rest * w.days) / freeDays : 0);
-    const spent = r2(spendRows.filter((r) => r.d >= w.start && r.d <= w.end && (r.c === null || dayToDay.has(r.c))).reduce((a, r) => a + r.v, 0));
+    const custom = weekCats.some((c) => c.weeks[i].custom);
+    const base = r2(weekCats.reduce((a, c) => a + c.weeks[i].plan, 0));
+    const spent = r2(weekCats.reduce((a, c) => a + c.weeks[i].spent, 0));
     const state = w.end < today ? 'past' : w.start <= today ? 'current' : 'future';
     if (state === 'current') current = i;
     const allowance = state === 'future' ? null : r2(base + carried);
@@ -511,7 +618,7 @@ export function periodKpis(period: Period): PeriodKpis {
     categories,
     groups,
     plan,
-    weekly: { budget: weekBudget, planned: r2(weeks.reduce((a, w) => a + w.base, 0)), current, weeks },
+    weekly: { budget: weekBudget, planned: r2(weeks.reduce((a, w) => a + w.base, 0)), current, weeks, categories: weekCats },
   };
 }
 

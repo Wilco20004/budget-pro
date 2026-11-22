@@ -1211,3 +1211,55 @@ i.swatch {
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
+
+/* Wide-screen-only parts (the per-category week grid) and their phone note.
+   Narrower than the tab bar's breakpoint so a small tablet (744px) gets the grid. */
+.phone-only {
+  display: none;
+}
+@media (max-width: 700px) {
+  .hide-phone {
+    display: none !important;
+  }
+  .phone-only {
+    display: block;
+  }
+}
+
+/* Day-to-day by week: one row per category, an amount box per week. */
+.week-grid th,
+.week-grid td {
+  vertical-align: top;
+}
+.week-grid td:first-child {
+  min-width: 9rem;
+  vertical-align: middle;
+}
+.week-grid td.num {
+  white-space: nowrap;
+}
+.week-grid input {
+  width: 5.2rem;
+  text-align: right;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+}
+.week-grid input::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+@media (max-width: 1000px) {
+  .week-grid {
+    font-size: 0.85rem;
+  }
+  .week-grid th,
+  .week-grid td {
+    padding: 0.35rem 0.2rem;
+  }
+  .week-grid td:first-child {
+    min-width: 7.5rem;
+  }
+  .week-grid input {
+    width: 4.4rem;
+  }
+}

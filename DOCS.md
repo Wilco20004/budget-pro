@@ -281,12 +281,19 @@ week with the amount to transfer to your spending account on its first day
 (nothing when earlier weeks already overspent), its allowance, spending and
 what's left. A week that hasn't started shows its plan.
 
-Weeks don't have to be equal. **Edit weeks** on the card sets an amount for
-any week, for example more for a holiday week or less for a week away. The
-weeks you leave blank share whatever is left of the day-to-day budget, by
-days, so the period still adds up. If the weeks you set come to more than
-the budget, the card says by how much. To plan an upcoming period, pick it
-with the period arrows first. **All automatic** clears the hand-set weeks.
+Weeks don't have to be equal, and neither do categories. On a tablet or
+computer, the Plan page's **Day-to-day by week** grid (or **Plan weeks** on
+the dashboard card) has a row per day-to-day category and a box per week:
+type an amount to set that category's week by hand, for example more
+eating out and less groceries in a holiday week. A category's blank weeks
+share what's left of its plan for the period, by days, so the period still
+adds up. Under each box is what that category spent that week. A
+subcategory without a plan of its own (Meat under Groceries) is planned as
+part of its parent, so its spending shows on the parent's row. The grid
+warns when a category's set weeks come to more than its plan. To plan an
+upcoming period, pick it with the period arrows first. **All automatic**
+clears every amount set by hand. On a phone the grid isn't shown (it needs
+the room); the dashboard card still shows each week's total.
 
 ### Savings first (Plan page)
 

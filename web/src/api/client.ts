@@ -178,8 +178,8 @@ export const api = {
     request<SavingsAllocation[]>(`api/savings/allocations/${txId}`, json('PUT', { allocations })),
   saveBudget: (period: string, lines: { category_id: string; amount: number }[], setDefault = false) =>
     request<{ ok: true }>(`api/budgets/${period}`, json('PUT', { lines, set_default: setDefault })),
-  saveWeeks: (period: string, weeks: { n: number; amount: number | null }[]) =>
-    request<{ ok: true }>(`api/budgets/${period}/weeks`, json('PUT', { weeks })),
+  saveWeeks: (period: string, cells: { category_id: string; n: number; amount: number }[]) =>
+    request<{ ok: true }>(`api/budgets/${period}/weeks`, json('PUT', { cells })),
   copyPreviousBudget: (period: string) => request<{ copied: number }>(`api/budgets/${period}/copy-previous`, json('POST')),
 
   accounts: () => request<Account[]>('api/accounts'),

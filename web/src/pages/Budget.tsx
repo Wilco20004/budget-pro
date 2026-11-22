@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import PaymentPlans from '../components/PaymentPlans';
+import WeekGrid from '../components/WeekGrid';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
 import { money, shortDate } from '../format';
-import { Link } from 'react-router-dom';
-import { BudgetLine, PaymentPlan } from '../types';
+import { Link, useLocation } from 'react-router-dom';
+import { BudgetLine, PaymentPlan, PeriodKpis } from '../types';
 
 const KIND_TITLE: Record<string, string> = { income: 'Expected income', expense: 'Spending', savings: 'Savings' };
 
@@ -17,6 +18,33 @@ export default function Budget() {
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [weekly, setWeekly] = useState<PeriodKpis['weekly'] | null>(null);
+  const { search } = useLocation();
+  // The period on show now: a slower answer for one switched away from is dropped.
+  const shown = useRef<string | undefined>(undefined);
+  shown.current = selected?.start;
+  const loadWeekly = () => {
+    if (!selected) return;
+    const start = selected.start;
+    api
+      .kpis(start)
+      .then((k) => {
+        if (shown.current === start && k.period.start === start) setWeekly(k.weekly);
+      })
+      .catch(() => undefined);
+  };
+  useEffect(() => {
+    setWeekly(null);
+    loadWeekly();
+  }, [selected?.start]);
+  // From the dashboard's "Plan weeks": scroll to the grid once, when it first shows.
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (!scrolled.current && weekly && lines.length && new URLSearchParams(search).has('weeks')) {
+      scrolled.current = true;
+      document.getElementById('weeks')?.scrollIntoView({ block: 'start' });
+    }
+  }, [weekly, lines.length, search]);
 
   // keepValues: a payment plan changed — refresh the plan add-ons without losing unsaved typing.
   const load = (keepValues = false) => {
@@ -56,6 +84,7 @@ export default function Budget() {
       );
       setMsg(setDefault ? 'Saved for this period and as the default for future periods.' : 'Saved for this period.');
       load();
+      loadWeekly();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -244,6 +273,17 @@ export default function Budget() {
           </div>
         );
       })}
+
+      {selected && weekly && lines.length > 0 && (
+        <WeekGrid
+          key={selected.start}
+          periodStart={selected.start}
+          weekly={weekly}
+          lines={lines}
+          planOf={lineTotal}
+          onSaved={loadWeekly}
+        />
+      )}
 
       {selected && (
         <PaymentPlans periodStart={selected.start} plans={plans} categories={lines} onChange={() => load(true)} />

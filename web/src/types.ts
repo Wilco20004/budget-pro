@@ -151,6 +151,17 @@ export interface CategoryKpi {
 
 export type Bucket = 'fixed' | 'debt' | 'day_to_day';
 
+/** One day-to-day category across the weeks of a period. */
+export interface WeekCategoryKpi {
+  /** null = spending not categorised yet (no plan, not editable). */
+  category_id: string | null;
+  name: string;
+  icon: string | null;
+  parent_id: string | null;
+  planned: number;
+  weeks: { plan: number; custom: boolean; spent: number }[];
+}
+
 export interface WeekKpi {
   n: number;
   start: string;
@@ -204,7 +215,7 @@ export interface PeriodKpis {
   categories: CategoryKpi[];
   groups: GroupKpi[];
   plan: { income: number; savings: number; live_on: number; fixed: number; day_to_day: number; debt: number; surplus: number };
-  weekly: { budget: number; planned: number; current: number | null; weeks: WeekKpi[] };
+  weekly: { budget: number; planned: number; current: number | null; weeks: WeekKpi[]; categories: WeekCategoryKpi[] };
 }
 
 export interface TrendPoint {

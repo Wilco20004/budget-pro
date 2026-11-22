@@ -13,6 +13,7 @@ import { emailRouter } from './routes/email';
 import { whatsappRouter } from './routes/whatsapp';
 import { whatsappWebhook } from './whatsapp';
 import { budgetsRouter, kpisRouter } from './routes/budgets';
+import { migrateAllWeekTotals } from './services/kpis';
 import { importsRouter } from './routes/imports';
 import { notificationsRouter } from './routes/notifications';
 import { paymentPlansRouter } from './routes/paymentPlans';
@@ -99,6 +100,7 @@ if (fs.existsSync(webDist)) {
 
 app.listen(PORT, () => {
   console.log(`BudgetPro server listening on port ${PORT}`);
+  migrateAllWeekTotals();
   startInboxWatcher();
   startEmailWatcher();
   publishSensors().catch(() => undefined);

@@ -6,7 +6,7 @@ import { listPlans, planBudget } from '../services/paymentPlans';
 import { debtOverview, ensureDebtCategories } from '../services/debts';
 import { goalBudget } from '../services/savings';
 import { previousPeriod, resolvePeriod } from '../services/periods';
-import { h, num, round2 } from '../util';
+import { h, HttpError, num, round2 } from '../util';
 
 export const budgetsRouter = Router();
 
@@ -106,21 +106,32 @@ budgetsRouter.post(
   })
 );
 
-/** Body: { weeks: [{ n, amount }] } — the period's hand-set week amounts,
- *  replacing any set before. amount null (or a week left out) = automatic. */
+/** Body: { cells: [{ category_id, n, amount }] } — the period's amounts set
+ *  by hand per category and week, replacing any set before. amount null (or
+ *  a cell left out) = automatic: its share of what the set weeks leave. */
 budgetsRouter.put(
   '/:period/weeks',
   h((req, res) => {
     const period = resolvePeriod(req.params.period);
-    const weeks = Array.isArray(req.body?.weeks) ? req.body.weeks : [];
-    const insert = db.prepare(`INSERT INTO week_plans (period_start, week_n, amount) VALUES (?, ?, ?)
-       ON CONFLICT(period_start, week_n) DO UPDATE SET amount = excluded.amount`);
+    // An older page sends { weeks }: refuse rather than read it as "clear everything".
+    if (!Array.isArray(req.body?.cells)) {
+      throw new HttpError(400, 'This page is out of date: reload BudgetPro and try again.');
+    }
+    const cells = req.body.cells as { category_id?: unknown; n?: unknown; amount?: unknown }[];
+    const known = new Set((db.prepare('SELECT id FROM categories').all() as { id: string }[]).map((c) => c.id));
+    const upsert = db.prepare(
+      `INSERT INTO week_category_plans (period_start, week_n, category_id, amount) VALUES (?, ?, ?, ?)
+       ON CONFLICT(period_start, week_n, category_id) DO UPDATE SET amount = excluded.amount`
+    );
     db.transaction(() => {
+      db.prepare('DELETE FROM week_category_plans WHERE period_start = ?').run(period.start);
+      // Whole-week amounts from 1.31.0 are replaced by what's saved now.
       db.prepare('DELETE FROM week_plans WHERE period_start = ?').run(period.start);
-      for (const w of weeks) {
-        const n = Math.trunc(num(w?.n));
-        if (n < 1 || w?.amount === null || w?.amount === undefined || w?.amount === '') continue;
-        insert.run(period.start, n, Math.max(0, round2(num(w.amount))));
+      for (const c of cells) {
+        const n = Math.trunc(num(c?.n));
+        const id = String(c?.category_id ?? '');
+        if (n < 1 || !known.has(id) || c?.amount === null || c?.amount === undefined || c?.amount === '') continue;
+        upsert.run(period.start, n, id, Math.max(0, round2(num(c.amount))));
       }
     })();
     publishSensors().catch(() => undefined);

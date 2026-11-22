@@ -672,3 +672,17 @@ db.exec(`
     PRIMARY KEY (period_start, week_n)
   );
 `);
+
+// 1.32.0: day-to-day planned per category per week (a holiday week gets more
+// eating out, less groceries). A category's weeks without a row share what's
+// left of its plan for the period. 1.31.0's whole-week amounts (week_plans)
+// are split into these the first time their period is read.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS week_category_plans (
+    period_start TEXT NOT NULL,
+    week_n INTEGER NOT NULL,
+    category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    amount REAL NOT NULL,
+    PRIMARY KEY (period_start, week_n, category_id)
+  );
+`);
