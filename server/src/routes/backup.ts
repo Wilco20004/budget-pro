@@ -23,6 +23,7 @@ const TABLES = [
   'budget_lines',
   'week_plans',
   'week_category_plans',
+  'week_category_notes',
   'payment_plans',
   'savings_goals',
   'merchants',

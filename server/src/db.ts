@@ -686,3 +686,15 @@ db.exec(`
     PRIMARY KEY (period_start, week_n, category_id)
   );
 `);
+
+// 1.33.0: a note on a category's week ("Kids: school trip"), with or without
+// an amount set for it.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS week_category_notes (
+    period_start TEXT NOT NULL,
+    week_n INTEGER NOT NULL,
+    category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    note TEXT NOT NULL,
+    PRIMARY KEY (period_start, week_n, category_id)
+  );
+`);

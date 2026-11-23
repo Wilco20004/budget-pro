@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { dayMonth, money, todayIso } from '../format';
 import { PeriodKpis } from '../types';
@@ -87,7 +88,8 @@ export default function WeeklyPlan({ k }: { k: PeriodKpis }) {
           </thead>
           <tbody>
             {weeks.map((w) => (
-              <tr key={w.n} style={w.state === 'current' ? { fontWeight: 600 } : undefined}>
+              <Fragment key={w.n}>
+              <tr className={w.notes.length ? 'has-notes' : undefined} style={w.state === 'current' ? { fontWeight: 600 } : undefined}>
                 <td>
                   {w.n}
                   <span className="small muted week-dates">
@@ -114,6 +116,23 @@ export default function WeeklyPlan({ k }: { k: PeriodKpis }) {
                   {w.left !== null ? money(w.left, { whole: true }) : <span className="muted">—</span>}
                 </td>
               </tr>
+              {w.notes.length > 0 && (
+                <tr className="week-notes-row">
+                  {/* Five columns, or four on a phone where Transfer folds into the week cell. */}
+                  {[5, 4].map((span) => (
+                    <td key={span} colSpan={span} className={'small muted ' + (span === 5 ? 'wk-wide' : 'wk-narrow')}>
+                      📝{' '}
+                      {w.notes.map((x, j) => (
+                        <span key={x.category_id}>
+                          {j > 0 && ' · '}
+                          {x.icon} {x.name}: {x.note}
+                        </span>
+                      ))}
+                    </td>
+                  ))}
+                </tr>
+              )}
+              </Fragment>
             ))}
             {anyCustom && Math.abs(planned - budget) >= 1 && (
               <tr className="group-row">

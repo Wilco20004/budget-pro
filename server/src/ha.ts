@@ -86,6 +86,7 @@ export async function publishSensors(): Promise<void> {
           week_end: week.end,
           allowance: week.allowance,
           spent: week.spent,
+          notes: week.notes.map((x) => `${x.name}: ${x.note}`),
         });
       }
       await setState('sensor.budgetpro_days_left', k.days_left, {

@@ -159,7 +159,7 @@ export interface WeekCategoryKpi {
   icon: string | null;
   parent_id: string | null;
   planned: number;
-  weeks: { plan: number; custom: boolean; spent: number }[];
+  weeks: { plan: number; custom: boolean; spent: number; note: string | null }[];
 }
 
 export interface WeekKpi {
@@ -175,6 +175,8 @@ export interface WeekKpi {
   spent: number;
   left: number | null;
   state: 'past' | 'current' | 'future';
+  /** Notes on this week's categories ("Kids: school trip"). */
+  notes: { category_id: string; name: string; icon: string | null; note: string }[];
 }
 
 export interface PeriodKpis {

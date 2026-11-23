@@ -292,7 +292,12 @@ subcategory without a plan of its own (Meat under Groceries) is planned as
 part of its parent, so its spending shows on the parent's row. The grid
 warns when a category's set weeks come to more than its plan. To plan an
 upcoming period, pick it with the period arrows first. **All automatic**
-clears every amount set by hand. On a phone the grid isn't shown (it needs
+clears every amount set by hand (notes stay).
+
+The 📝 beside each box adds a note on what that week is for: "school trip
+R350" on Kids, "birthday dinner" on Eating out. Notes show under the
+category's name in the grid, under each week on the dashboard card (on a
+phone too), and as the notes attribute of sensor.budgetpro_week_left. On a phone the grid isn't shown (it needs
 the room); the dashboard card still shows each week's total.
 
 ### Savings first (Plan page)

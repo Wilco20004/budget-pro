@@ -1,5 +1,14 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.33.0 — 2026-11-22
+
+- **Week notes**: in the Plan page's *Day-to-day by week* grid, 📝 beside a
+  category's week adds a note on what's planned ("school trip R350",
+  "birthday party"). Notes are listed under the category's name, shown under
+  each week on the dashboard's weekly card (phones too), and on the
+  sensor.budgetpro_week_left sensor as a notes attribute. They save with
+  *Save weeks*; *All automatic* clears amounts but keeps notes.
+
 ## 1.32.0 — 2026-11-22
 
 - **Day-to-day by week** on the Plan page (tablet and computer): plan each

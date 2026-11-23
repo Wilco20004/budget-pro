@@ -106,9 +106,11 @@ budgetsRouter.post(
   })
 );
 
-/** Body: { cells: [{ category_id, n, amount }] } — the period's amounts set
- *  by hand per category and week, replacing any set before. amount null (or
- *  a cell left out) = automatic: its share of what the set weeks leave. */
+/** Body: { cells: [{ category_id, n, amount }], notes?: [{ category_id, n, note }] }
+ *  — the period's amounts set by hand per category and week, replacing any
+ *  set before. amount null (or a cell left out) = automatic: its share of
+ *  what the set weeks leave. notes, when sent, replace the period's notes
+ *  (left out = notes unchanged, so "All automatic" keeps them). */
 budgetsRouter.put(
   '/:period/weeks',
   h((req, res) => {
@@ -132,6 +134,20 @@ budgetsRouter.put(
         const id = String(c?.category_id ?? '');
         if (n < 1 || !known.has(id) || c?.amount === null || c?.amount === undefined || c?.amount === '') continue;
         upsert.run(period.start, n, id, Math.max(0, round2(num(c.amount))));
+      }
+      if (Array.isArray(req.body?.notes)) {
+        db.prepare('DELETE FROM week_category_notes WHERE period_start = ?').run(period.start);
+        const addNote = db.prepare(
+          `INSERT INTO week_category_notes (period_start, week_n, category_id, note) VALUES (?, ?, ?, ?)
+           ON CONFLICT(period_start, week_n, category_id) DO UPDATE SET note = excluded.note`
+        );
+        for (const x of req.body.notes as { category_id?: unknown; n?: unknown; note?: unknown }[]) {
+          const n = Math.trunc(num(x?.n));
+          const id = String(x?.category_id ?? '');
+          const note = typeof x?.note === 'string' ? x.note.trim().slice(0, 200) : '';
+          if (n < 1 || !known.has(id) || !note) continue;
+          addNote.run(period.start, n, id, note);
+        }
       }
     })();
     publishSensors().catch(() => undefined);

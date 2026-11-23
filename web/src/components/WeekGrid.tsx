@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { dayMonth, money } from '../format';
 import { BudgetLine, PeriodKpis } from '../types';
@@ -12,6 +12,14 @@ function range(start: string, end: string) {
 }
 
 const key = (id: string, n: number) => `${id}:${n}`;
+
+const toEntries = (m: Record<string, string>) =>
+  Object.entries(m)
+    .filter(([, v]) => v.trim())
+    .map(([k, v]) => {
+      const [category_id, n] = k.split(':');
+      return { category_id, n: Number(n), v: v.trim() };
+    });
 
 /** Day-to-day categories × payday weeks. Type an amount to set a week by hand;
  *  a blank week gets its share (by days) of what the category's set weeks
@@ -40,7 +48,20 @@ export default function WeekGrid({
     }
     return m;
   }, [weekly]);
+  const savedNotes = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of weekly.categories) {
+      if (!c.category_id) continue;
+      c.weeks.forEach((w, i) => {
+        if (w.note) m[key(c.category_id!, i + 1)] = w.note;
+      });
+    }
+    return m;
+  }, [weekly]);
   const [cells, setCells] = useState<Record<string, string>>(saved);
+  const [notes, setNotes] = useState<Record<string, string>>(savedNotes);
+  // The category and week whose note is open for editing.
+  const [editing, setEditing] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -51,12 +72,13 @@ export default function WeekGrid({
   useEffect(() => {
     if (dirtyRef.current) return;
     setCells(saved);
-  }, [saved]);
+    setNotes(savedNotes);
+  }, [saved, savedNotes]);
 
   const weeks = weekly.weeks;
   const fromK = new Map(weekly.categories.map((c) => [c.category_id, c]));
   const dayLines = lines.filter((l) => l.kind === 'expense' && l.bucket === 'day_to_day');
-  const hasCells = (id: string) => weeks.some((w) => cells[key(id, w.n)]?.trim());
+  const hasCells = (id: string) => weeks.some((w) => cells[key(id, w.n)]?.trim() || notes[key(id, w.n)]?.trim());
   // A subcategory without a plan of its own (Meat under Groceries) is planned
   // as part of its parent: its spending shows on the parent's row.
   const dayIds = new Set(dayLines.map((l) => l.category_id));
@@ -102,18 +124,16 @@ export default function WeekGrid({
   const total = weeks.reduce((a, _, i) => a + weekTotal(i), 0);
   const anySet = Object.values(cells).some((v) => v.trim());
 
-  async function save(next: Record<string, string>) {
+  // keepNotes: "All automatic" clears the amounts only.
+  async function save(next: Record<string, string>, keepNotes = false) {
     try {
       setError(null);
       await api.saveWeeks(
         periodStart,
-        Object.entries(next)
-          .filter(([, v]) => v.trim())
-          .map(([k, v]) => {
-            const [category_id, n] = k.split(':');
-            return { category_id, n: Number(n), amount: parseFloat(v) || 0 };
-          })
+        toEntries(next).map((e) => ({ category_id: e.category_id, n: e.n, amount: parseFloat(e.v) || 0 })),
+        keepNotes ? undefined : toEntries(notes).map((e) => ({ category_id: e.category_id, n: e.n, note: e.v }))
       );
+      setEditing(null);
       setDirty(false);
       dirtyRef.current = false;
       setNote('Weeks saved.');
@@ -141,7 +161,8 @@ export default function WeekGrid({
       <div className="hide-phone">
         <p className="small muted" style={{ marginTop: 0 }}>
           Type an amount to set a week by hand; a blank week gets its share, by days, of what the category’s set weeks
-          leave. Under each amount: what’s been spent that week.
+          leave. Under each amount: what’s been spent that week. 📝 adds a note on what’s planned (a school trip, a
+          birthday).
         </p>
         {error && <div className="error">{error}</div>}
         <div className="table-wrap">
@@ -166,11 +187,23 @@ export default function WeekGrid({
                 const allSet = p.every((x) => x.custom);
                 const over = r.id && setTotal > r.planned + 0.5;
                 const short = r.id && allSet && setTotal < r.planned - 0.5;
+                const rowNotes = r.id ? weeks.filter((w) => notes[key(r.id!, w.n)]?.trim()) : [];
+                const open = r.id ? weeks.find((w) => editing === key(r.id!, w.n)) : undefined;
                 return (
-                  <tr key={r.id ?? 'unc'}>
+                  <Fragment key={r.id ?? 'unc'}>
+                  <tr className={rowNotes.length || open ? 'has-notes' : undefined}>
                     <td>
                       {r.sub && <span className="muted">↳ </span>}
                       <span className="icon">{r.icon}</span> {r.name}
+                      {rowNotes.length > 0 && (
+                        <div className="small muted week-notes">
+                          {rowNotes.map((w) => (
+                            <button key={w.n} className="link small" onClick={() => setEditing(key(r.id!, w.n))} title="Edit this note">
+                              Wk {w.n}: {notes[key(r.id!, w.n)]}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     {weeks.map((w, i) => {
                       const spent = spentOf(r.id, i);
@@ -178,6 +211,15 @@ export default function WeekGrid({
                       return (
                         <td key={w.n} className="num">
                           {r.id ? (
+                            <span className="cell-with-note">
+                            <button
+                              className={'note-btn' + (notes[key(r.id, w.n)]?.trim() ? ' has' : '')}
+                              title={notes[key(r.id, w.n)]?.trim() ? 'Note: ' + notes[key(r.id, w.n)] : 'Add a note for this week'}
+                              aria-label={'Note for ' + r.name + ', week ' + w.n}
+                              onClick={() => setEditing(editing === key(r.id!, w.n) ? null : key(r.id!, w.n))}
+                            >
+                              📝
+                            </button>
                             <input
                               type="number"
                               step="1"
@@ -192,6 +234,7 @@ export default function WeekGrid({
                                 setNote(null);
                               }}
                             />
+                            </span>
                           ) : (
                             <span className="muted">—</span>
                           )}
@@ -221,6 +264,34 @@ export default function WeekGrid({
                       )}
                     </td>
                   </tr>
+                  {open && r.id && (
+                    <tr className="note-edit">
+                      <td colSpan={weeks.length + 2}>
+                        <label className="row small" style={{ gap: 8 }}>
+                          <span style={{ whiteSpace: 'nowrap' }}>
+                            {r.icon} {r.name} · week {open.n} ({range(open.start, open.end)})
+                          </span>
+                          <input
+                            autoFocus
+                            maxLength={200}
+                            placeholder="What’s planned this week, e.g. school trip R350, birthday party"
+                            value={notes[key(r.id, open.n)] ?? ''}
+                            onChange={(e) => {
+                              setNotes({ ...notes, [key(r.id!, open.n)]: e.target.value });
+                              setDirty(true);
+                              setNote(null);
+                            }}
+                            onKeyDown={(e) => (e.key === 'Enter' || e.key === 'Escape') && setEditing(null)}
+                            style={{ flex: 1 }}
+                          />
+                          <button className="small" onClick={() => setEditing(null)}>
+                            Done
+                          </button>
+                        </label>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
               <tr className="group-row">
@@ -255,7 +326,7 @@ export default function WeekGrid({
           {dirty && <span className="small muted">Not saved yet</span>}
           <span className="spacer" />
           {anySet && (
-            <button onClick={() => save({})} title="Clear every amount set by hand">
+            <button onClick={() => save({}, true)} title="Clear every amount set by hand (notes stay)">
               All automatic
             </button>
           )}
@@ -263,6 +334,8 @@ export default function WeekGrid({
             <button
               onClick={() => {
                 setCells(saved);
+                setNotes(savedNotes);
+                setEditing(null);
                 setDirty(false);
                 dirtyRef.current = false;
               }}

@@ -63,6 +63,8 @@ export interface WeekKpi {
   /** allowance − spent; null for a week that hasn't started. */
   left: number | null;
   state: 'past' | 'current' | 'future';
+  /** Notes on this week's categories ("Kids: school trip"). */
+  notes: { category_id: string; name: string; icon: string | null; note: string }[];
 }
 
 /** One day-to-day category across the weeks of a period. */
@@ -75,7 +77,7 @@ export interface WeekCategoryKpi {
   /** The category's own plan for the period (as on the Plan page). */
   planned: number;
   /** plan: set by hand (custom) or its share by days of what the set weeks leave. */
-  weeks: { plan: number; custom: boolean; spent: number }[];
+  weeks: { plan: number; custom: boolean; spent: number; note: string | null }[];
 }
 
 /** 1.31.0 stored whole-week amounts; 1.32.0 plans each category per week.
@@ -530,8 +532,21 @@ export function periodKpis(period: Period, opts: { migrate?: boolean } = {}): Pe
     if (!spentBy.has(r.c)) spentBy.set(r.c, blocks.map(() => 0));
     spentBy.get(r.c)![i] += r.v;
   }
-  const catIds = [...new Set([...ownPlanned.keys(), ...cells.keys(), ...[...spentBy.keys()].filter((k): k is string => k !== null)])].filter(
-    (id) => (ownPlanned.get(id) ?? 0) > 0 || cells.has(id) || spentBy.has(id)
+  // What's planned for a category's week, in words.
+  const notes = new Map<string, Map<number, string>>();
+  for (const r of db.prepare('SELECT category_id, week_n, note FROM week_category_notes WHERE period_start = ?').all(period.start) as {
+    category_id: string;
+    week_n: number;
+    note: string;
+  }[]) {
+    if (r.week_n < 1 || r.week_n > nWeeks || !dayToDay.has(r.category_id) || !r.note.trim()) continue;
+    if (!notes.has(r.category_id)) notes.set(r.category_id, new Map());
+    notes.get(r.category_id)!.set(r.week_n, r.note);
+  }
+  const catIds = [
+    ...new Set([...ownPlanned.keys(), ...cells.keys(), ...notes.keys(), ...[...spentBy.keys()].filter((k): k is string => k !== null)]),
+  ].filter(
+    (id) => (ownPlanned.get(id) ?? 0) > 0 || cells.has(id) || notes.has(id) || spentBy.has(id)
   );
   const byIdAll = new Map(categories.map((c) => [c.category_id, c]));
   const weekCats: WeekCategoryKpi[] = catIds.map((id) => {
@@ -551,6 +566,7 @@ export function periodKpis(period: Period, opts: { migrate?: boolean } = {}): Pe
       weeks: blocks.map((w, i) => ({
         plan: r2(set.has(i + 1) ? set.get(i + 1)! : freeDays ? (rest * w.days) / freeDays : 0),
         custom: set.has(i + 1),
+        note: notes.get(id)?.get(i + 1) ?? null,
         spent: r2(spent[i]),
       })),
     };
@@ -563,7 +579,7 @@ export function periodKpis(period: Period, opts: { migrate?: boolean } = {}): Pe
       icon: '❓',
       parent_id: null,
       planned: 0,
-      weeks: spentBy.get(null)!.map((v) => ({ plan: 0, custom: false, spent: r2(v) })),
+      weeks: spentBy.get(null)!.map((v) => ({ plan: 0, custom: false, spent: r2(v), note: null })),
     });
   }
 
@@ -577,7 +593,10 @@ export function periodKpis(period: Period, opts: { migrate?: boolean } = {}): Pe
     if (state === 'current') current = i;
     const allowance = state === 'future' ? null : r2(base + carried);
     if (state !== 'future') carried = r2(carried + base - spent);
-    return { n: i + 1, ...w, base, custom, allowance, spent, left: allowance === null ? null : r2(allowance - spent), state };
+    const weekNotes = weekCats
+      .filter((c) => c.category_id && c.weeks[i].note)
+      .map((c) => ({ category_id: c.category_id!, name: c.name, icon: c.icon, note: c.weeks[i].note! }));
+    return { n: i + 1, ...w, base, custom, allowance, spent, left: allowance === null ? null : r2(allowance - spent), state, notes: weekNotes };
   });
 
   return {
