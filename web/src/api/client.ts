@@ -163,6 +163,8 @@ export const api = {
   debts: (period?: string) => request<DebtOverview>(`api/debts${qs({ period })}`),
   updateDebt: (accountId: string, p: { planned_payment?: number | null; interest_rate?: number | null; credit_limit?: number | null; paid_in_full?: boolean }) =>
     request<DebtOverview>(`api/debts/${accountId}`, json('PATCH', p)),
+  setDebtBalance: (accountId: string, owed: number | null, date?: string) =>
+    request<DebtOverview>(`api/debts/${accountId}/balance`, json('PUT', { owed, date })),
   recheckDebts: () => request<{ refiled: number; paired: number }>('api/debts/recheck', json('POST')),
 
   savings: (period?: string, all = false) => request<SavingsOverview>(`api/savings${qs({ period, all: all ? 1 : undefined })}`),

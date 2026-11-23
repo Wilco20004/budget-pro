@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { db, now } from '../db';
 import { publishSensors } from '../ha';
-import { debtOverview, ensureDebtCategories, recheckDebtLines, setPaidInFull, setPlannedPayment } from '../services/debts';
-import { resolvePeriod } from '../services/periods';
+import { debtOverview, ensureDebtCategories, recheckDebtLines, setOwed, setPaidInFull, setPlannedPayment } from '../services/debts';
+import { resolvePeriod, todayIso } from '../services/periods';
 import { h, notFound, num, round2 } from '../util';
 
 export const debtsRouter = Router();
@@ -32,6 +32,27 @@ debtsRouter.patch(
     for (const col of ['interest_rate', 'credit_limit']) {
       if (col in body) db.prepare(`UPDATE accounts SET ${col} = ?, updated_at = ? WHERE id = ?`).run(value(body[col]), now(), id);
     }
+    publishSensors().catch(() => undefined);
+    res.json(debtOverview(resolvePeriod(req.query.period)));
+  })
+);
+
+/** Sets what's owed on a debt account, e.g. from the banking app between
+ *  statements. Body: { owed, date? } — date defaults to today; owed null
+ *  clears the balance set for that day. Statement lines after the date and
+ *  any newer statement take over from it. */
+debtsRouter.put(
+  '/:accountId/balance',
+  h((req, res) => {
+    const id = String(req.params.accountId);
+    if (!db.prepare("SELECT 1 FROM accounts WHERE id = ? AND type IN ('credit', 'loan')").get(id)) notFound('Not a credit card or loan account');
+    const body = req.body ?? {};
+    const date = body.date ? String(body.date) : todayIso();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) throw new Error('Date must be YYYY-MM-DD');
+    if (date > todayIso()) throw new Error('The date can’t be in the future');
+    const owed = body.owed === null || body.owed === '' || body.owed === undefined ? null : round2(num(body.owed, NaN));
+    if (owed !== null && !Number.isFinite(owed)) throw new Error('Owed must be a number');
+    setOwed(id, date, owed);
     publishSensors().catch(() => undefined);
     res.json(debtOverview(resolvePeriod(req.query.period)));
   })

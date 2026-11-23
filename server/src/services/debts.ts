@@ -139,8 +139,8 @@ function categoryId(where: string): string | null {
   return (db.prepare(`SELECT id FROM categories WHERE ${where} AND archived = 0 ORDER BY sort_order LIMIT 1`).get() as { id: string } | undefined)?.id ?? null;
 }
 
-/** The account's balance at the end of a day (statement order within a day). */
-export function balanceAt(accountId: string, date: string): number | null {
+/** The closing running balance of the last statement day on or before `date`. */
+function statementBalance(accountId: string, date: string): { date: string; balance: number } | null {
   const last = db
     .prepare('SELECT MAX(date) AS d FROM transactions WHERE account_id = ? AND date <= ? AND balance IS NOT NULL')
     .get(accountId, date) as { d: string | null };
@@ -153,7 +153,52 @@ export function balanceAt(accountId: string, date: string): number | null {
   // fallback.
   const starts = new Set(day.map((r) => r2(r.balance - r.amount)));
   const ends = day.filter((r) => !starts.has(r2(r.balance)) || day.length === 1);
-  return (ends.length === 1 ? ends[0] : day[day.length - 1]).balance;
+  return { date: last.d, balance: (ends.length === 1 ? ends[0] : day[day.length - 1]).balance };
+}
+
+export interface BalanceInfo {
+  balance: number;
+  /** Where it starts from: a statement's running balance, or one set by hand. */
+  source: 'statement' | 'manual';
+  /** The day that starting balance is for. */
+  as_of: string;
+  /** Lines without a running balance after it (phone alerts, entries by
+   *  hand) that moved it on, and by how much. */
+  later_lines: number;
+  later_amount: number;
+}
+
+/** The account's balance at the end of a day: the newest of the statement's
+ *  running balance and a balance set by hand (the hand one wins on the same
+ *  day), moved on by the lines after it that carry no balance of their own. */
+export function balanceInfo(accountId: string, date: string): BalanceInfo | null {
+  const stmt = statementBalance(accountId, date);
+  const manual = db
+    .prepare('SELECT date, balance FROM account_balances WHERE account_id = ? AND date <= ? ORDER BY date DESC LIMIT 1')
+    .get(accountId, date) as { date: string; balance: number } | undefined;
+  const base = manual && (!stmt || manual.date >= stmt.date) ? { ...manual, source: 'manual' as const } : stmt ? { ...stmt, source: 'statement' as const } : null;
+  if (!base) return null;
+  const later = db
+    .prepare(
+      'SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ? AND balance IS NULL AND ignored = 0 AND date > ? AND date <= ?'
+    )
+    .get(accountId, base.date, date) as { n: number; s: number };
+  return { balance: r2(base.balance + later.s), source: base.source, as_of: base.date, later_lines: later.n, later_amount: r2(later.s) };
+}
+
+export function balanceAt(accountId: string, date: string): number | null {
+  return balanceInfo(accountId, date)?.balance ?? null;
+}
+
+/** Sets what's owed on a debt account at the end of `date` (null clears the
+ *  one set for that day). */
+export function setOwed(accountId: string, date: string, owed: number | null) {
+  if (owed === null) db.prepare('DELETE FROM account_balances WHERE account_id = ? AND date = ?').run(accountId, date);
+  else
+    db.prepare(
+      `INSERT INTO account_balances (account_id, date, balance, created_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (account_id, date) DO UPDATE SET balance = excluded.balance, created_at = excluded.created_at`
+    ).run(accountId, date, r2(-owed), new Date().toISOString());
 }
 
 function owedAt(accountId: string, date: string): number | null {
@@ -228,6 +273,12 @@ export function describeDebt(a: AccountRow, period: Period = currentPeriod()) {
     interest_rate: a.interest_rate,
     credit_limit: a.credit_limit,
     owed,
+    /** How `owed` was worked out, so it can be checked against the bank:
+     *  the starting figure, its day and source, and the later lines. */
+    owed_from: (() => {
+      const b = balanceInfo(a.id, today);
+      return b && { source: b.source, as_of: b.as_of, owed: r2(-(b.balance - b.later_amount)), later_lines: b.later_lines, later_amount: b.later_amount };
+    })(),
     available: a.credit_limit && owed !== null ? r2(a.credit_limit - owed) : null,
     utilisation: a.credit_limit && owed !== null ? r2((owed / a.credit_limit) * 100) : null,
     this_period: {

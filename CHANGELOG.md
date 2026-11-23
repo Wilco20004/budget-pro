@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.34.0 — 2026-11-23
+
+- **Debt balances keep up between statements**: what's owed starts from the
+  last statement's balance and now moves on with later lines that have no
+  balance of their own (phone alerts, entries by hand). Before, a card paid
+  through alerts kept showing its last statement's figure.
+- **Update balance** on each Debt page card: set what's owed on a day, e.g.
+  from the banking app. The newest of that and the statement balance wins;
+  *Clear* goes back to the statement. A line under the figure says where it
+  comes from. Claude connector: new set_debt_balance tool.
+- Savings accounts tracked from their statements roll forward the same way.
+
 ## 1.33.0 — 2026-11-22
 
 - **Week notes**: in the Plan page's *Day-to-day by week* grid, 📝 beside a

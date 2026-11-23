@@ -698,3 +698,17 @@ db.exec(`
     PRIMARY KEY (period_start, week_n, category_id)
   );
 `);
+
+// A balance the user set by hand (1.34.0), e.g. from the banking app between
+// statements. Holder's side like transactions.balance (owed = negative), as
+// at the end of `date`. The newest of this and the statement's running
+// balance wins; lines without a balance after it roll it forward.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS account_balances (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    balance REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (account_id, date)
+  );
+`);

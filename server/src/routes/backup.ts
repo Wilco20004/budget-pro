@@ -24,6 +24,7 @@ const TABLES = [
   'week_plans',
   'week_category_plans',
   'week_category_notes',
+  'account_balances',
   'payment_plans',
   'savings_goals',
   'merchants',

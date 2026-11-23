@@ -368,8 +368,13 @@ The **Debt** page lists every credit card and loan account you import
 statements for (Setup → Accounts, type *Credit card* or *Loan*). For each
 one it shows:
 
-- what you owe, from the statements, and on a card with a limit, how much
-  of it is used;
+- what you owe, and on a card with a limit, how much of it is used. It
+  starts from the last statement's balance and moves on with the lines
+  after it that have no balance of their own (phone alerts, entries by
+  hand); the line under it says which statement and how many later lines.
+  Between statements, **Update balance** sets what's owed on a day from
+  your banking app. A newer statement takes over from it, and *Clear* goes
+  back to the statement. You can also tell Claude (`set_debt_balance`);
 - your plan: the **repayment per period**, the **interest rate** and the
   **credit limit** (all optional, edited on the page);
 - this period: what was paid, what the debt cost (interest, fees, cover),

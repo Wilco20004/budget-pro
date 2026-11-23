@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { db } from './db';
+import { publishSensors } from './ha';
 import { reprocessEmail } from './email/importer';
 import { htmlToLines } from './email/htmlText';
 import { fetchMessage, listMessages, withMailbox } from './email/mailbox';
@@ -11,12 +12,12 @@ import { productHistory, queryProducts } from './routes/receipts';
 import { createPlan } from './routes/paymentPlans';
 import { addMovement, createGoal } from './routes/savings';
 import { savingsOverview, setTransactionAllocations } from './services/savings';
-import { debtOverview } from './services/debts';
+import { debtOverview, setOwed } from './services/debts';
 import { accountBreakdown, settleUp } from './services/household';
 import { queryTransactions, setSingleCategory } from './routes/transactions';
 import { applyPlanCategory, getPlan, listPlans } from './services/paymentPlans';
 import { periodKpis, trend } from './services/kpis';
-import { currentPeriod, recentPeriods, resolvePeriod } from './services/periods';
+import { currentPeriod, recentPeriods, resolvePeriod, todayIso } from './services/periods';
 import { getSettings } from './settings';
 
 // MCP (Model Context Protocol) endpoint so an AI client — Claude Desktop,
@@ -348,6 +349,30 @@ function buildServer(): McpServer {
       annotations: { readOnlyHint: true },
     },
     async ({ period }) => json(debtOverview(resolvePeriod(period)))
+  );
+
+  server.registerTool(
+    'set_debt_balance',
+    {
+      title: 'Set what a debt owes',
+      description:
+        'Sets what is owed on a credit card or loan account (account_id from list_debts) at the end of a day, e.g. from the banking app ' +
+        'between statements. Lines after that day without a running balance move it on; a newer statement takes over. owed null clears ' +
+        'the balance set for that day. Returns the debt overview.',
+      inputSchema: {
+        account_id: z.string(),
+        owed: z.number().min(0).nullable().describe('Amount owed, positive'),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('YYYY-MM-DD, default today'),
+      },
+    },
+    async ({ account_id, owed, date }) => {
+      if (!db.prepare("SELECT 1 FROM accounts WHERE id = ? AND type IN ('credit', 'loan')").get(account_id)) throw new Error('Not a credit card or loan account');
+      const on = date ?? todayIso();
+      if (on > todayIso()) throw new Error('The date can’t be in the future');
+      setOwed(account_id, on, owed === null ? null : Math.round(owed * 100) / 100);
+      publishSensors().catch(() => undefined);
+      return json(debtOverview(currentPeriod()));
+    }
   );
 
   server.registerTool(

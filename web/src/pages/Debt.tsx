@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { PeriodPicker, usePeriod } from '../components/PeriodContext';
-import { money, shortDate } from '../format';
+import { money, shortDate, todayIso } from '../format';
 import { DebtAccount, DebtOverview } from '../types';
 
 const STATUS: Record<DebtAccount['status'], { text: string; color: string } | null> = {
@@ -42,9 +42,85 @@ function PlanInput({ label, value, suffix, onSave }: { label: string; value: num
 }
 
 type DebtPatch = Partial<Record<'planned_payment' | 'interest_rate' | 'credit_limit', number | null>> & { paid_in_full?: boolean };
+type SetBalance = (owed: number | null, date: string) => Promise<unknown>;
+
+/** Where the owed figure comes from, and a form to set it by hand (e.g.
+ *  from the banking app between statements). */
+function Balance({ d, onSet }: { d: DebtAccount; onSet: SetBalance }) {
+  const [open, setOpen] = useState(false);
+  const [owed, setOwed] = useState('');
+  const [date, setDate] = useState(todayIso());
+  const [busy, setBusy] = useState(false);
+  const f = d.owed_from;
+  const save = (v: number | null, on: string) => {
+    setBusy(true);
+    onSet(v, on)
+      .then(() => setOpen(false))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div className="small muted debt-balance">
+      {f ? (
+        <>
+          {f.source === 'manual' ? 'Set by you' : 'Statement'} {shortDate(f.as_of)}: {money(f.owed)}
+          {f.later_lines > 0 && (
+            <>
+              {' '}
+              {f.later_amount > 0 ? '−' : '+'} {money(Math.abs(f.later_amount))} in {f.later_lines} later line{f.later_lines === 1 ? '' : 's'}
+            </>
+          )}
+        </>
+      ) : (
+        'No balance yet — import a statement or set it'
+      )}{' '}
+      {!open && (
+        <button
+          className="link"
+          onClick={() => {
+            setOwed(d.owed !== null ? String(d.owed) : '');
+            setDate(todayIso());
+            setOpen(true);
+          }}
+        >
+          Update balance
+        </button>
+      )}
+      {open && (
+        <form
+          className="row debt-balance-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = parseFloat(owed);
+            if (Number.isFinite(v)) save(Math.abs(v), date);
+          }}
+        >
+          <label className="row" style={{ gap: 4 }}>
+            Owed
+            <input type="number" inputMode="decimal" step="0.01" min="0" required autoFocus value={owed} onChange={(e) => setOwed(e.target.value)} style={{ width: '8rem', textAlign: 'right' }} />
+          </label>
+          <label className="row" style={{ gap: 4 }}>
+            on
+            <input type="date" required max={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} />
+          </label>
+          <button type="submit" className="primary small" disabled={busy}>
+            Save
+          </button>
+          <button type="button" className="small" onClick={() => setOpen(false)}>
+            Cancel
+          </button>
+          {f?.source === 'manual' && (
+            <button type="button" className="small" disabled={busy} title="Go back to the statement balance" onClick={() => save(null, f.as_of)}>
+              Clear the {shortDate(f.as_of)} balance
+            </button>
+          )}
+        </form>
+      )}
+    </div>
+  );
+}
 
 /** A card that's cleared in full every month: spending runs off it. */
-function SpendingCard({ d, onSave }: { d: DebtAccount; onSave: (p: DebtPatch) => void }) {
+function SpendingCard({ d, onSave, onSetBalance }: { d: DebtAccount; onSave: (p: DebtPatch) => void; onSetBalance: SetBalance }) {
   const status = STATUS[d.status];
   return (
     <div className="card">
@@ -55,6 +131,7 @@ function SpendingCard({ d, onSave }: { d: DebtAccount; onSave: (p: DebtPatch) =>
         <span className="small muted">balance</span>
         <strong>{d.owed === null ? '—' : money(d.owed, { whole: true })}</strong>
       </div>
+      <Balance d={d} onSet={onSetBalance} />
       <p className="small" style={{ marginBottom: 0 }}>
         {status && <span style={{ color: status.color }}>{status.text}</span>} · spent on it this period{' '}
         {money(d.this_period.purchases + d.this_period.costs)} (in their own categories) · paid in {money(d.this_period.paid)}
@@ -67,8 +144,8 @@ function SpendingCard({ d, onSave }: { d: DebtAccount; onSave: (p: DebtPatch) =>
   );
 }
 
-function DebtCard({ d, onSave }: { d: DebtAccount; onSave: (p: DebtPatch) => void }) {
-  if (d.paid_in_full) return <SpendingCard d={d} onSave={onSave} />;
+function DebtCard({ d, onSave, onSetBalance }: { d: DebtAccount; onSave: (p: DebtPatch) => void; onSetBalance: SetBalance }) {
+  if (d.paid_in_full) return <SpendingCard d={d} onSave={onSave} onSetBalance={onSetBalance} />;
   const status = STATUS[d.status];
   const p = d.this_period;
   const known = d.history.filter((h) => h.owed !== null);
@@ -82,6 +159,7 @@ function DebtCard({ d, onSave }: { d: DebtAccount; onSave: (p: DebtPatch) => voi
         <span className="small muted">owed</span>
         <strong style={{ fontSize: '1.25rem' }}>{d.owed === null ? '—' : money(d.owed, { whole: true })}</strong>
       </div>
+      <Balance d={d} onSet={onSetBalance} />
 
       {d.credit_limit && d.utilisation !== null && (
         <div style={{ marginBottom: '0.5rem' }}>
@@ -234,7 +312,9 @@ export default function Debt() {
       <p className="small muted">
         Credit cards and loans you import statements for. Each has its own line under Debt repayments on the{' '}
         <Link to="/budget">Plan</Link> page: planned = the repayment below, actual = the debt's interest, fees and cover plus how much the
-        balance came down. The repayment itself is a transfer from the paying account.
+        balance came down. The repayment itself is a transfer from the paying account. What's owed comes from the last statement,
+        moved on by later lines (phone alerts, entries by hand); between statements, <em>Update balance</em> sets it from your
+        banking app.
         Accounts are added under <Link to="/setup">Setup → Accounts</Link> (type Credit card or Loan).
       </p>
 
@@ -247,6 +327,12 @@ export default function Debt() {
             selected &&
             api
               .updateDebt(d.account_id, p)
+              .then(load)
+              .catch((e) => setError(e.message))
+          }
+          onSetBalance={(owed, date) =>
+            api
+              .setDebtBalance(d.account_id, owed, date)
               .then(load)
               .catch((e) => setError(e.message))
           }

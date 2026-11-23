@@ -1328,3 +1328,20 @@ i.swatch {
   width: auto;
   text-align: left;
 }
+
+/* Debt: where the owed figure comes from, and setting it by hand. */
+.debt-balance {
+  margin: -0.25rem 0 0.5rem;
+  text-align: right;
+}
+.debt-balance-form {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  color: var(--ink);
+}
+@media (max-width: 560px) {
+  .debt-balance { text-align: left; }
+  .debt-balance-form { justify-content: flex-start; }
+}

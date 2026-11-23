@@ -321,6 +321,8 @@ export interface DebtAccount {
   interest_rate: number | null;
   credit_limit: number | null;
   owed: number | null;
+  /** How owed was worked out: a statement's or hand-set balance on a day, plus later lines with no balance. */
+  owed_from: { source: 'statement' | 'manual'; as_of: string; owed: number; later_lines: number; later_amount: number } | null;
   available: number | null;
   utilisation: number | null;
   this_period: { paid: number; costs: number; purchases: number; paid_down: number | null; owed_start: number | null };
